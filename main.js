@@ -87,6 +87,9 @@ const createScene = () => {
 
 				// Check if the new player is the current player
 				const isCurrentPlayer = sessionId === room.sessionId;
+				console.log(
+					`Player ${sessionId} is the current player: ${isCurrentPlayer}`,
+				);
 				sphere.material = new BABYLON.StandardMaterial(
 					`player-material-${sessionId}`,
 					scene,
@@ -107,6 +110,10 @@ const createScene = () => {
 					player.y,
 					player.z,
 				);
+
+				player.onChange(() => {
+					playerNextPosition[sessionId].set(player.x, player.y, player.z);
+				});
 			});
 
 			room.state.players.onRemove((player, sessionId) => {
@@ -125,6 +132,11 @@ const createScene = () => {
 						message.z,
 					);
 				}
+			});
+
+			// on room disconnection
+			room.onLeave((code) => {
+				loadingText.text = "Disconnected from the room.";
 			});
 
 			scene.onPointerDown = (event, pointer) => {
