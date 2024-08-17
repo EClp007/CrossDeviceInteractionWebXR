@@ -106,6 +106,43 @@ const createScene = () => {
 				console.log("Disconnected from the room.");
 			});
 
+			// Keyboard input handling
+			window.addEventListener("keydown", (event) => {
+				const speed = 0.5; // Increased movement speed
+				const moveVector = new BABYLON.Vector3(0, 0, 0);
+
+				switch (event.key) {
+					case "w":
+					case "W":
+						moveVector.z -= speed;
+						break;
+					case "s":
+					case "S":
+						moveVector.z += speed;
+						break;
+					case "a":
+					case "A":
+						moveVector.x -= speed;
+						break;
+					case "d":
+					case "D":
+						moveVector.x += speed;
+						break;
+					default:
+						return; // Ignore other keys
+				}
+
+				const newPosition = sharedSpherePosition.add(moveVector);
+				sharedSpherePosition.copyFrom(newPosition);
+
+				// Send position update to the server
+				room.send("updatePosition", {
+					x: sharedSpherePosition.x,
+					y: sharedSpherePosition.y,
+					z: sharedSpherePosition.z,
+				});
+			});
+
 			// Player interaction: Click on the ground to change the position
 			scene.onPointerDown = (event, pointer) => {
 				if (event.button === 0 && pointer.pickedPoint) {
