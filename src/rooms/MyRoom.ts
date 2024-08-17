@@ -1,6 +1,5 @@
 import { Room, type Client } from "@colyseus/core";
-import { MyRoomState, Player } from "./schema/MyRoomState";
-
+import { MyRoomState, Player, SharedSphere } from "./schema/MyRoomState";
 export class MyRoom extends Room<MyRoomState> {
   maxClients = 4;
 
@@ -12,9 +11,21 @@ export class MyRoom extends Room<MyRoomState> {
       player.x = data.x;
       player.y = data.y;
       player.z = data.z;
+
+      // Also update the shared sphere's position
+      this.state.sharedSphere.x = data.x;
+      this.state.sharedSphere.y = data.y;
+      this.state.sharedSphere.z = data.z;
+
+      // Broadcast the new sphere position to all clients
+      this.broadcast("updateSpherePosition", {
+        x: this.state.sharedSphere.x,
+        y: this.state.sharedSphere.y,
+        z: this.state.sharedSphere.z,
+      });
     });
   }
-  
+
   onJoin(client: Client, options: any) {
     console.log(client.sessionId, "joined!");
 
@@ -23,23 +34,22 @@ export class MyRoom extends Room<MyRoomState> {
 
     // place Player at a random position
     const FLOOR_SIZE = 500;
-    player.x = -(FLOOR_SIZE/2) + (Math.random() * FLOOR_SIZE);
+    player.x = -(FLOOR_SIZE / 2) + Math.random() * FLOOR_SIZE;
     player.y = -1;
-    player.z = -(FLOOR_SIZE/2) + (Math.random() * FLOOR_SIZE);
+    player.z = -(FLOOR_SIZE / 2) + Math.random() * FLOOR_SIZE;
 
     // place player in the map of players by its sessionId
     // (client.sessionId is unique per connection!)
     this.state.players.set(client.sessionId, player);
-}
+  }
 
-onLeave(client: Client, consented: boolean) {
-  console.log(client.sessionId, "left!");
+  onLeave(client: Client, consented: boolean) {
+    console.log(client.sessionId, "left!");
 
-  this.state.players.delete(client.sessionId);
-}
+    this.state.players.delete(client.sessionId);
+  }
 
   onDispose() {
     console.log("room", this.roomId, "disposing...");
   }
-
 }
