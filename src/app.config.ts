@@ -8,13 +8,11 @@ import { playground } from "@colyseus/playground";
 import { MyRoom } from "./rooms/MyRoom";
 
 export default config({
-
     initializeGameServer: (gameServer) => {
         /**
          * Define your room handlers:
          */
-        gameServer.define('my_room', MyRoom);
-
+        gameServer.define("my_room", MyRoom);
     },
 
     initializeExpress: (app) => {
@@ -22,6 +20,14 @@ export default config({
          * Bind your custom express routes here:
          * Read more: https://expressjs.com/en/starter/basic-routing.html
          */
+
+        // Handle requests to the root URL
+        app.get("/", (req, res) => {
+            res.send("Server is running. Welcome to the Colyseus server!");
+            // Alternatively, serve an HTML file if needed:
+            // res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        });
+
         app.get("/hello_world", (req, res) => {
             res.send("It's time to kick ass and chew bubblegum!");
         });
@@ -42,10 +48,9 @@ export default config({
         app.use("/colyseus", monitor());
     },
 
-
     beforeListen: () => {
         /**
          * Before before gameServer.listen() is called.
          */
-    }
+    },
 });
