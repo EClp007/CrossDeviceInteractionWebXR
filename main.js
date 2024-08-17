@@ -69,7 +69,9 @@ const createScene = () => {
 	sphere.position.y = 1;
 	shadowGenerator.addShadowCaster(sphere);
 
-	const colyseusSDK = new Client("ws://localhost:2567");
+	const colyseusSDK = new Client(
+		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
+	);
 	colyseusSDK
 		.joinOrCreate("my_room")
 		.then((room) => {
