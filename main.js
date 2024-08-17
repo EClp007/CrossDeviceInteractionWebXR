@@ -16,8 +16,7 @@ const engine = new BABYLON.Engine(canvas, true, {
 	stencil: true,
 });
 
-const playerEntities = {};
-const playerNextPosition = {};
+const sharedSpherePosition = new BABYLON.Vector3(0, 0, 0); // Store the shared sphere's position
 
 const createScene = () => {
 	const scene = new BABYLON.Scene(engine);
@@ -60,93 +59,97 @@ const createScene = () => {
 	);
 	ground.receiveShadows = true;
 
-	// Add a sphere to cast shadows
-	const sphere = BABYLON.MeshBuilder.CreateSphere(
+	// Add a single shared sphere to cast shadows
+	const sharedSphere = BABYLON.MeshBuilder.CreateSphere(
 		"sphere",
 		{ diameter: 2 },
 		scene,
 	);
-	sphere.position.y = 1;
-	shadowGenerator.addShadowCaster(sphere);
+	sharedSphere.position.y = 1;
+	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const colyseusSDK = new Client(
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
 	);
+
 	colyseusSDK
 		.joinOrCreate("my_room")
 		.then((room) => {
 			console.log(`Connected to roomId: ${room.roomId}`);
 
-			room.state.players.onAdd((player, sessionId) => {
-				// create player Sphere
-				const sphere = BABYLON.MeshBuilder.CreateSphere(`player-${sessionId}`, {
-					segments: 8,
-					diameter: 40,
-				});
+			// Ensure sharedSphere exists in the state
+			if (!room.state.sharedSphere) {
+				console.error("sharedSphere is not initialized in the room state.");
+				return;
+			}
 
-				// set player spawning position
-				sphere.position.set(player.x, player.y, player.z);
-
-				// Check if the new player is the current player
-				const isCurrentPlayer = sessionId === room.sessionId;
-				console.log(
-					`Player ${sessionId} is the current player: ${isCurrentPlayer}`,
+			// Safely attach the onChange listener
+			room.state.sharedSphere.onChange(() => {
+				// Update the position of the shared sphere
+				sharedSpherePosition.set(
+					room.state.sharedSphere.x,
+					room.state.sharedSphere.y,
+					room.state.sharedSphere.z,
 				);
-				sphere.material = new BABYLON.StandardMaterial(
-					`player-material-${sessionId}`,
-					scene,
-				);
-
-				if (isCurrentPlayer) {
-					// highlight current player
-					sphere.material.emissiveColor =
-						BABYLON.Color3.FromHexString("#ff9900");
-				} else {
-					// other players are gray colored
-					sphere.material.emissiveColor = BABYLON.Color3.Gray();
-				}
-
-				playerEntities[sessionId] = sphere;
-				playerNextPosition[sessionId] = new BABYLON.Vector3(
-					player.x,
-					player.y,
-					player.z,
-				);
-
-				player.onChange(() => {
-					playerNextPosition[sessionId].set(player.x, player.y, player.z);
-				});
-			});
-
-			room.state.players.onRemove((player, sessionId) => {
-				if (playerEntities[sessionId]) {
-					playerEntities[sessionId].dispose();
-					delete playerEntities[sessionId];
-					delete playerNextPosition[sessionId];
-				}
 			});
 
 			room.onMessage("updatePosition", (message) => {
-				if (playerEntities[message.sessionId]) {
-					playerNextPosition[message.sessionId] = new BABYLON.Vector3(
-						message.x,
-						message.y,
-						message.z,
-					);
-				}
+				// Update the shared sphere position locally
+				sharedSpherePosition.set(message.x, message.y, message.z);
+				room.state.sharedSphere.x = message.x;
+				room.state.sharedSphere.y = message.y;
+				room.state.sharedSphere.z = message.z;
 			});
 
 			// on room disconnection
 			room.onLeave((code) => {
-				loadingText.text = "Disconnected from the room.";
+				console.log("Disconnected from the room.");
 			});
 
+			// Keyboard input handling
+			window.addEventListener("keydown", (event) => {
+				const speed = 0.5; // Increased movement speed
+				const moveVector = new BABYLON.Vector3(0, 0, 0);
+
+				switch (event.key) {
+					case "w":
+					case "W":
+						moveVector.z -= speed;
+						break;
+					case "s":
+					case "S":
+						moveVector.z += speed;
+						break;
+					case "a":
+					case "A":
+						moveVector.x -= speed;
+						break;
+					case "d":
+					case "D":
+						moveVector.x += speed;
+						break;
+					default:
+						return; // Ignore other keys
+				}
+
+				const newPosition = sharedSpherePosition.add(moveVector);
+				sharedSpherePosition.copyFrom(newPosition);
+
+				// Send position update to the server
+				room.send("updatePosition", {
+					x: sharedSpherePosition.x,
+					y: sharedSpherePosition.y,
+					z: sharedSpherePosition.z,
+				});
+			});
+
+			// Player interaction: Click on the ground to change the position
 			scene.onPointerDown = (event, pointer) => {
 				if (event.button === 0 && pointer.pickedPoint) {
 					const targetPosition = pointer.pickedPoint.clone();
 
 					// Position adjustments for the current playground.
-					targetPosition.y = -1;
+					targetPosition.y = -1; // Keep the sphere at ground level
 					if (targetPosition.x > 245) targetPosition.x = 245;
 					else if (targetPosition.x < -245) targetPosition.x = -245;
 					if (targetPosition.z > 245) targetPosition.z = 245;
@@ -166,15 +169,12 @@ const createScene = () => {
 		});
 
 	scene.registerBeforeRender(() => {
-		for (const sessionId in playerEntities) {
-			const entity = playerEntities[sessionId];
-			const targetPosition = playerNextPosition[sessionId];
-			entity.position = BABYLON.Vector3.Lerp(
-				entity.position,
-				targetPosition,
-				0.05,
-			);
-		}
+		// Smoothly interpolate the shared sphere's position
+		sharedSphere.position = BABYLON.Vector3.Lerp(
+			sharedSphere.position,
+			sharedSpherePosition,
+			0.05,
+		);
 	});
 
 	return scene;
