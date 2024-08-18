@@ -79,7 +79,7 @@ const createScene = () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	// Set up VR experience
-	const vrHelper = scene.createDefaultXRExperienceAsync ({
+	const vrHelper = scene.createDefaultXRExperienceAsync({
 		createDeviceOrientationCamera: false,
 		trackPosition: true,
 		laserToggle: true,
@@ -87,7 +87,7 @@ const createScene = () => {
 			left: {
 				onPointerDownObservable: (event) => {
 					handlePointerDown(event, scene, ground, sharedSpherePosition);
-				},a
+				},
 			},
 			right: {
 				onPointerDownObservable: (event) => {
