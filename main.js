@@ -78,6 +78,25 @@ const createScene = () => {
 	sharedSphere.position.y = 1;
 	shadowGenerator.addShadowCaster(sharedSphere);
 
+	// Set up VR experience
+	const vrHelper = scene.createDefaultXRExperienceAsync ({
+		createDeviceOrientationCamera: false,
+		trackPosition: true,
+		laserToggle: true,
+		controllers: {
+			left: {
+				onPointerDownObservable: (event) => {
+					handlePointerDown(event, scene, ground, sharedSpherePosition);
+				},a
+			},
+			right: {
+				onPointerDownObservable: (event) => {
+					handlePointerDown(event, scene, ground, sharedSpherePosition);
+				},
+			},
+		},
+	});
+
 	const colyseusSDK = new Client(
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
 	);
@@ -197,6 +216,35 @@ const createScene = () => {
 
 	return scene;
 };
+
+// Function to handle pointer down events in VR
+function handlePointerDown(event, scene, ground, sharedSpherePosition) {
+	const pickInfo = scene.pick(
+		scene.pointerX,
+		scene.pointerY,
+		(mesh) => mesh === ground,
+	);
+	if (pickInfo.hit) {
+		const targetPosition = pickInfo.pickedPoint.clone();
+
+		// Position adjustments for the current playground.
+		targetPosition.y = 1; // Keep the sphere at ground level
+		if (targetPosition.x > 5) targetPosition.x = 5;
+		else if (targetPosition.x < -5) targetPosition.x = -5;
+		if (targetPosition.z > 5) targetPosition.z = 5;
+		else if (targetPosition.z < -5) targetPosition.z = -5;
+
+		// Update the sharedSpherePosition
+		sharedSpherePosition.copyFrom(targetPosition);
+
+		// Send position update to the server
+		room.send("updatePosition", {
+			x: targetPosition.x,
+			y: 1, // Ensure it stays on the ground
+			z: targetPosition.z,
+		});
+	}
+}
 
 const scene = createScene();
 
