@@ -16,7 +16,7 @@ const engine = new BABYLON.Engine(canvas, true, {
 	stencil: true,
 });
 
-const sharedSpherePosition = new BABYLON.Vector3(0, 0, 0); // Store the shared sphere's position
+const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 
 const createScene = () => {
 	const scene = new BABYLON.Scene(engine);
@@ -51,13 +51,22 @@ const createScene = () => {
 	// Enable shadows
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
+	// Create and add a colored material to the ground
+	const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
+	groundMaterial.diffuseColor = new BABYLON.Color3(0.4, 0.6, 0.4); // Greenish color
+
 	// Add a ground
 	const ground = BABYLON.MeshBuilder.CreateGround(
 		"ground",
 		{ width: 10, height: 10 },
 		scene,
 	);
+	ground.material = groundMaterial; // Apply the material to the ground
 	ground.receiveShadows = true;
+
+	// Create and add a colored material to the sphere
+	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
+	sphereMaterial.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.2); // Reddish color
 
 	// Add a single shared sphere to cast shadows
 	const sharedSphere = BABYLON.MeshBuilder.CreateSphere(
@@ -65,6 +74,7 @@ const createScene = () => {
 		{ diameter: 2 },
 		scene,
 	);
+	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
 	sharedSphere.position.y = 1;
 	shadowGenerator.addShadowCaster(sharedSphere);
 
@@ -88,16 +98,16 @@ const createScene = () => {
 				// Update the position of the shared sphere
 				sharedSpherePosition.set(
 					room.state.sharedSphere.x,
-					room.state.sharedSphere.y,
+					1, // Keep the sphere at ground level
 					room.state.sharedSphere.z,
 				);
 			});
 
 			room.onMessage("updatePosition", (message) => {
 				// Update the shared sphere position locally
-				sharedSpherePosition.set(message.x, message.y, message.z);
+				sharedSpherePosition.set(message.x, 1, message.z);
 				room.state.sharedSphere.x = message.x;
-				room.state.sharedSphere.y = message.y;
+				room.state.sharedSphere.y = 1; // Ensure it stays on the ground
 				room.state.sharedSphere.z = message.z;
 			});
 
@@ -108,7 +118,7 @@ const createScene = () => {
 
 			// Keyboard input handling
 			window.addEventListener("keydown", (event) => {
-				const speed = 0.5; // Increased movement speed
+				const speed = 0.5; // Movement speed
 				const moveVector = new BABYLON.Vector3(0, 0, 0);
 
 				switch (event.key) {
@@ -122,11 +132,11 @@ const createScene = () => {
 						break;
 					case "a":
 					case "A":
-						moveVector.x -= speed;
+						moveVector.x = speed;
 						break;
 					case "d":
 					case "D":
-						moveVector.x += speed;
+						moveVector.x -= speed;
 						break;
 					default:
 						return; // Ignore other keys
@@ -135,10 +145,16 @@ const createScene = () => {
 				const newPosition = sharedSpherePosition.add(moveVector);
 				sharedSpherePosition.copyFrom(newPosition);
 
+				// Position adjustments for the current playground.
+				if (sharedSpherePosition.x > 5) sharedSpherePosition.x = 5;
+				else if (sharedSpherePosition.x < -5) sharedSpherePosition.x = -5;
+				if (sharedSpherePosition.z > 5) sharedSpherePosition.z = 5;
+				else if (sharedSpherePosition.z < -5) sharedSpherePosition.z = -5;
+
 				// Send position update to the server
 				room.send("updatePosition", {
 					x: sharedSpherePosition.x,
-					y: sharedSpherePosition.y,
+					y: 1, // Ensure it stays on the ground
 					z: sharedSpherePosition.z,
 				});
 			});
@@ -149,18 +165,20 @@ const createScene = () => {
 					const targetPosition = pointer.pickedPoint.clone();
 
 					// Position adjustments for the current playground.
-					targetPosition.y = -1; // Keep the sphere at ground level
-					if (targetPosition.x > 245) targetPosition.x = 245;
-					else if (targetPosition.x < -245) targetPosition.x = -245;
-					if (targetPosition.z > 245) targetPosition.z = 245;
-					else if (targetPosition.z < -245) targetPosition.z = -245;
+					targetPosition.y = 1; // Keep the sphere at ground level
+					if (targetPosition.x > 5) targetPosition.x = 5;
+					else if (targetPosition.x < -5) targetPosition.x = -5;
+					if (targetPosition.z > 5) targetPosition.z = 5;
+					else if (targetPosition.z < -5) targetPosition.z = -5;
 
 					// Send position update to the server
 					room.send("updatePosition", {
 						x: targetPosition.x,
-						y: targetPosition.y,
+						y: 1, // Ensure it stays on the ground
 						z: targetPosition.z,
 					});
+				} else {
+					console.warn("Pointer did not hit any mesh or ground.");
 				}
 			};
 		})
