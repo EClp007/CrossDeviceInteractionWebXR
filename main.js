@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { Client } from "colyseus.js";
 import "@babylonjs/loaders";
+import { Inspector } from "@babylonjs/inspector";
 
 // Get the canvas element
 const canvas = document.getElementById("renderCanvas");
@@ -20,17 +21,21 @@ const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared s
 
 const createScene = () => {
 	const scene = new BABYLON.Scene(engine);
+	Inspector.Show(scene, {});
 
 	// Create an ArcRotateCamera
 	const camera = new BABYLON.ArcRotateCamera(
 		"camera",
 		Math.PI / 2,
 		Math.PI / 4,
-		10,
+		5,
 		new BABYLON.Vector3(0, 0, 0),
 		scene,
 	);
 	camera.attachControl(canvas, true);
+
+	camera.alpha = -Math.PI / 2;
+	camera.beta = Math.PI / 2;
 
 	// Add a light
 	const light = new BABYLON.HemisphericLight(
@@ -51,10 +56,22 @@ const createScene = () => {
 	// Enable shadows
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
+	// Create and add a colored material to the desktop
+	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
+	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
+
+	const desktopWidth = 10;
+	const desktopHeight = 6;
+	const desktop = BABYLON.MeshBuilder.CreatePlane(
+		"desktop",
+		{ width: desktopWidth, height: desktopHeight },
+		scene,
+	);
+	desktop.material = desktopMaterial;
+
 	// Create and add a colored material to the ground
 	const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
 	groundMaterial.diffuseColor = new BABYLON.Color3(0.4, 0.6, 0.4); // Greenish color
-
 	// Add a ground
 	const ground = BABYLON.MeshBuilder.CreateGround(
 		"ground",
@@ -63,6 +80,7 @@ const createScene = () => {
 	);
 	ground.material = groundMaterial; // Apply the material to the ground
 	ground.receiveShadows = true;
+	ground.isVisible = false;
 
 	// Create and add a colored material to the sphere
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
@@ -75,8 +93,33 @@ const createScene = () => {
 		scene,
 	);
 	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
-	sharedSphere.position.y = 1;
+	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
+
+	// Define the plane at y = 1 (ground level)
+	const plane = BABYLON.Plane.FromPositionAndNormal(
+		new BABYLON.Vector3(0, 0, 0),
+		new BABYLON.Vector3(0, 0, 0),
+	);
+
+	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
+	function toggle2D3D(mesh, plane) {
+		const distance = plane.signedDistanceTo(mesh.position);
+		console.log("Distance to plane:", distance);
+		if (
+			mesh.position.x < desktopWidth / 2 + 1 &&
+			mesh.position.x > -desktopWidth / 2 - 1 &&
+			mesh.position.y < desktopHeight / 2 + 1 &&
+			mesh.position.y > -desktopHeight / 2 - 1
+		) {
+			// Render as 2D (flatten Z-axis)
+			mesh.scaling = new BABYLON.Vector3(1, 1, 0.001);
+		} else {
+			// Render as 3D
+			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
+			mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
+		}
+	}
 
 	// Set up VR experience
 	const vrHelper = scene.createDefaultXRExperienceAsync({
@@ -117,16 +160,16 @@ const createScene = () => {
 				// Update the position of the shared sphere
 				sharedSpherePosition.set(
 					room.state.sharedSphere.x,
-					1, // Keep the sphere at ground level
+					room.state.sharedSphere.y,
 					room.state.sharedSphere.z,
 				);
 			});
 
 			room.onMessage("updatePosition", (message) => {
 				// Update the shared sphere position locally
-				sharedSpherePosition.set(message.x, 1, message.z);
+				sharedSpherePosition.set(message.x, message.y, message.z);
 				room.state.sharedSphere.x = message.x;
-				room.state.sharedSphere.y = 1; // Ensure it stays on the ground
+				room.state.sharedSphere.y = message.y;
 				room.state.sharedSphere.z = message.z;
 			});
 
@@ -143,19 +186,19 @@ const createScene = () => {
 				switch (event.key) {
 					case "w":
 					case "W":
-						moveVector.z -= speed;
+						moveVector.y += speed;
 						break;
 					case "s":
 					case "S":
-						moveVector.z += speed;
+						moveVector.y -= speed;
 						break;
 					case "a":
 					case "A":
-						moveVector.x = speed;
+						moveVector.x -= speed;
 						break;
 					case "d":
 					case "D":
-						moveVector.x -= speed;
+						moveVector.x += speed;
 						break;
 					default:
 						return; // Ignore other keys
@@ -164,16 +207,10 @@ const createScene = () => {
 				const newPosition = sharedSpherePosition.add(moveVector);
 				sharedSpherePosition.copyFrom(newPosition);
 
-				// Position adjustments for the current playground.
-				if (sharedSpherePosition.x > 5) sharedSpherePosition.x = 5;
-				else if (sharedSpherePosition.x < -5) sharedSpherePosition.x = -5;
-				if (sharedSpherePosition.z > 5) sharedSpherePosition.z = 5;
-				else if (sharedSpherePosition.z < -5) sharedSpherePosition.z = -5;
-
 				// Send position update to the server
 				room.send("updatePosition", {
 					x: sharedSpherePosition.x,
-					y: 1, // Ensure it stays on the ground
+					y: sharedSpherePosition.y,
 					z: sharedSpherePosition.z,
 				});
 			});
@@ -183,17 +220,10 @@ const createScene = () => {
 				if (event.button === 0 && pointer.pickedPoint) {
 					const targetPosition = pointer.pickedPoint.clone();
 
-					// Position adjustments for the current playground.
-					targetPosition.y = 1; // Keep the sphere at ground level
-					if (targetPosition.x > 5) targetPosition.x = 5;
-					else if (targetPosition.x < -5) targetPosition.x = -5;
-					if (targetPosition.z > 5) targetPosition.z = 5;
-					else if (targetPosition.z < -5) targetPosition.z = -5;
-
 					// Send position update to the server
 					room.send("updatePosition", {
 						x: targetPosition.x,
-						y: 1, // Ensure it stays on the ground
+						y: targetPosition.y,
 						z: targetPosition.z,
 					});
 				} else {
@@ -212,6 +242,9 @@ const createScene = () => {
 			sharedSpherePosition,
 			0.05,
 		);
+
+		// Toggle between 2D and 3D based on the sphere's position relative to the plane
+		toggle2D3D(sharedSphere, plane);
 	});
 
 	return scene;
@@ -227,20 +260,13 @@ function handlePointerDown(event, scene, ground, sharedSpherePosition) {
 	if (pickInfo.hit) {
 		const targetPosition = pickInfo.pickedPoint.clone();
 
-		// Position adjustments for the current playground.
-		targetPosition.y = 1; // Keep the sphere at ground level
-		if (targetPosition.x > 5) targetPosition.x = 5;
-		else if (targetPosition.x < -5) targetPosition.x = -5;
-		if (targetPosition.z > 5) targetPosition.z = 5;
-		else if (targetPosition.z < -5) targetPosition.z = -5;
-
 		// Update the sharedSpherePosition
 		sharedSpherePosition.copyFrom(targetPosition);
 
 		// Send position update to the server
 		room.send("updatePosition", {
 			x: targetPosition.x,
-			y: 1, // Ensure it stays on the ground
+			y: targetPosition.y,
 			z: targetPosition.z,
 		});
 	}

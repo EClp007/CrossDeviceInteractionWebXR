@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "^7.14.0",
+    "@babylonjs/inspector": "^7.23.0",
     "@babylonjs/loaders": "^7.14.0",
     "colyseus.js": "^0.15.24"
   }
