@@ -60,8 +60,8 @@ const createScene = () => {
 	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
-	const desktopWidth = 10;
-	const desktopHeight = 6;
+	const desktopWidth = engine.getRenderWidth(); // 10
+	const desktopHeight = engine.getRenderHeight(); // 6
 	const desktop = BABYLON.MeshBuilder.CreatePlane(
 		"desktop",
 		{ width: desktopWidth, height: desktopHeight },
