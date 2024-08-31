@@ -28,11 +28,14 @@ const createScene = () => {
 		"camera",
 		Math.PI / 2,
 		Math.PI / 4,
-		10,
+		5,
 		new BABYLON.Vector3(0, 0, 0),
 		scene,
 	);
 	camera.attachControl(canvas, true);
+
+	camera.alpha = -Math.PI / 2;
+	camera.beta = Math.PI / 2;
 
 	// Add a light
 	const light = new BABYLON.HemisphericLight(
@@ -53,9 +56,9 @@ const createScene = () => {
 	// Enable shadows
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
-	// Create and add a colored material to the ground
+	// Create and add a colored material to the desktop
 	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
-	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // Greenish color
+	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
 	const desktopWidth = 10;
 	const desktopHeight = 6;
@@ -90,7 +93,7 @@ const createScene = () => {
 		scene,
 	);
 	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
-	sharedSphere.position.y = 0;
+	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	// Define the plane at y = 1 (ground level)
@@ -103,10 +106,14 @@ const createScene = () => {
 	function toggle2D3D(mesh, plane) {
 		const distance = plane.signedDistanceTo(mesh.position);
 		console.log("Distance to plane:", distance);
-		if (mesh.position.x < 6) {
+		if (
+			mesh.position.x < desktopWidth / 2 + 1 &&
+			mesh.position.x > -desktopWidth / 2 - 1 &&
+			mesh.position.y < desktopHeight / 2 + 1 &&
+			mesh.position.y > -desktopHeight / 2 - 1
+		) {
 			// Render as 2D (flatten Z-axis)
-			mesh.scaling = new BABYLON.Vector3(1, 1, 0.01);
-			mesh.position.y = 0; // Keep the sphere at ground level
+			mesh.scaling = new BABYLON.Vector3(1, 1, 0.001);
 		} else {
 			// Render as 3D
 			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
@@ -153,17 +160,17 @@ const createScene = () => {
 				// Update the position of the shared sphere
 				sharedSpherePosition.set(
 					room.state.sharedSphere.x,
-					room.state.sharedSphere.y, // Keep the sphere at ground level
-					0,
+					room.state.sharedSphere.y,
+					room.state.sharedSphere.z,
 				);
 			});
 
 			room.onMessage("updatePosition", (message) => {
 				// Update the shared sphere position locally
-				sharedSpherePosition.set(message.x, 1, message.z);
+				sharedSpherePosition.set(message.x, message.y, message.z);
 				room.state.sharedSphere.x = message.x;
-				room.state.sharedSphere.y = message.y; // Ensure it stays on the ground
-				room.state.sharedSphere.z = 0;
+				room.state.sharedSphere.y = message.y;
+				room.state.sharedSphere.z = message.z;
 			});
 
 			// on room disconnection
@@ -200,18 +207,11 @@ const createScene = () => {
 				const newPosition = sharedSpherePosition.add(moveVector);
 				sharedSpherePosition.copyFrom(newPosition);
 
-				// Position adjustments for the current playground.
-				/*
-				if (sharedSpherePosition.x > 5) sharedSpherePosition.x = 5;
-				else if (sharedSpherePosition.x < -5) sharedSpherePosition.x = -5;
-				if (sharedSpherePosition.z > 5) sharedSpherePosition.z = 5;
-				else if (sharedSpherePosition.z < -5) sharedSpherePosition.z = -5;*/
-
 				// Send position update to the server
 				room.send("updatePosition", {
 					x: sharedSpherePosition.x,
 					y: sharedSpherePosition.y,
-					z: 0, // Ensure it stays on the ground
+					z: sharedSpherePosition.z,
 				});
 			});
 
@@ -220,18 +220,11 @@ const createScene = () => {
 				if (event.button === 0 && pointer.pickedPoint) {
 					const targetPosition = pointer.pickedPoint.clone();
 
-					// Position adjustments for the current playground.
-					/*targetPosition.y = 0; // Keep the sphere at ground level
-					if (targetPosition.x > 5) targetPosition.x = 5;
-					else if (targetPosition.x < -5) targetPosition.x = -5;
-					if (targetPosition.z > 5) targetPosition.z = 5;
-					else if (targetPosition.z < -5) targetPosition.z = -5;*/
-
 					// Send position update to the server
 					room.send("updatePosition", {
 						x: targetPosition.x,
 						y: targetPosition.y,
-						z: 0, // Ensure it stays on the ground
+						z: targetPosition.z,
 					});
 				} else {
 					console.warn("Pointer did not hit any mesh or ground.");
@@ -262,17 +255,10 @@ function handlePointerDown(event, scene, ground, sharedSpherePosition) {
 	const pickInfo = scene.pick(
 		scene.pointerX,
 		scene.pointerY,
-		(mesh) => mesh === desktop,
+		(mesh) => mesh === ground,
 	);
 	if (pickInfo.hit) {
 		const targetPosition = pickInfo.pickedPoint.clone();
-
-		// Position adjustments for the current playground.
-		/*targetPosition.y = 0; // Keep the sphere at ground level
-		if (targetPosition.x > 5) targetPosition.x = 5;
-		else if (targetPosition.x < -5) targetPosition.x = -5;
-		if (targetPosition.z > 5) targetPosition.z = 5;
-		else if (targetPosition.z < -5) targetPosition.z = -5;*/
 
 		// Update the sharedSpherePosition
 		sharedSpherePosition.copyFrom(targetPosition);
@@ -280,7 +266,7 @@ function handlePointerDown(event, scene, ground, sharedSpherePosition) {
 		// Send position update to the server
 		room.send("updatePosition", {
 			x: targetPosition.x,
-			y: targetPosition.y, // Ensure it stays on the ground
+			y: targetPosition.y,
 			z: targetPosition.z,
 		});
 	}
