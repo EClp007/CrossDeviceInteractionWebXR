@@ -19,7 +19,7 @@ const engine = new BABYLON.Engine(canvas, true, {
 
 const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 
-const createScene = () => {
+const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
 	Inspector.Show(scene, {});
 
@@ -60,8 +60,8 @@ const createScene = () => {
 	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
-	const desktopWidth = engine.getRenderWidth(); // 10
-	const desktopHeight = engine.getRenderHeight(); // 6
+	const desktopWidth = 10; // engine.getRenderWidth();
+	const desktopHeight = 6; // engine.getRenderHeight();
 	const desktop = BABYLON.MeshBuilder.CreatePlane(
 		"desktop",
 		{ width: desktopWidth, height: desktopHeight },
@@ -122,22 +122,8 @@ const createScene = () => {
 	}
 
 	// Set up VR experience
-	const vrHelper = scene.createDefaultXRExperienceAsync({
-		createDeviceOrientationCamera: false,
-		trackPosition: true,
-		laserToggle: true,
-		controllers: {
-			left: {
-				onPointerDownObservable: (event) => {
-					handlePointerDown(event, scene, ground, sharedSpherePosition);
-				},
-			},
-			right: {
-				onPointerDownObservable: (event) => {
-					handlePointerDown(event, scene, ground, sharedSpherePosition);
-				},
-			},
-		},
+	const xrHelper = await scene.createDefaultXRExperienceAsync({
+		floorMeshes: [ground],
 	});
 
 	const colyseusSDK = new Client(
@@ -215,6 +201,69 @@ const createScene = () => {
 				});
 			});
 
+			// VR Controller interaction: Grab and move the shared sphere
+			let grabbedMesh = null; // Store the grabbed mesh
+
+			scene.onPointerObservable.add((pointerInfo) => {
+				switch (pointerInfo.type) {
+					case BABYLON.PointerEventTypes.POINTERDOWN:
+						console.log("POINTER DOWN", pointerInfo);
+						if (pointerInfo.pickInfo.hit && pointerInfo.pickInfo.pickedMesh) {
+							// "Grab" it by attaching the picked mesh to the VR Controller
+							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
+								const xrInput =
+									xrHelper.pointerSelection.getXRControllerByPointerId(
+										pointerInfo.event.pointerId,
+									);
+								const motionController = xrInput.motionController;
+								if (motionController) {
+									grabbedMesh = pointerInfo.pickInfo.pickedMesh;
+									console.log("Grabbed mesh:", grabbedMesh);
+									if (grabbedMesh.name === "sphere") {
+										console.log("Shared Sphere is grabbed");
+										grabbedMesh.setParent(motionController.rootMesh);
+									}
+								}
+							} else {
+								// here is the non-xr support
+							}
+						}
+						break;
+
+					case BABYLON.PointerEventTypes.POINTERUP:
+						console.log("POINTER UP", pointerInfo);
+						if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
+							const xrInput =
+								xrHelper.pointerSelection.getXRControllerByPointerId(
+									pointerInfo.event.pointerId,
+								);
+							const motionController = xrInput.motionController;
+							if (motionController) {
+								if (grabbedMesh) {
+									console.log("Released grabbed mesh:", grabbedMesh);
+									grabbedMesh.setParent(null, true); // Keep world position when unparenting
+
+									// Update sharedSpherePosition with the mesh's current position
+									sharedSpherePosition.copyFrom(grabbedMesh.position);
+
+									// Send position update to the server
+									room.send("updatePosition", {
+										x: grabbedMesh.position.x,
+										y: grabbedMesh.position.y,
+										z: grabbedMesh.position.z,
+									});
+
+									grabbedMesh = null; // Reset grabbed mesh
+								}
+							}
+						} else {
+							// here is the non-xr support
+						}
+						break;
+				}
+			}, BABYLON.PointerEventTypes.POINTERDOWN |
+				BABYLON.PointerEventTypes.POINTERUP);
+
 			// Player interaction: Click on the ground to change the position
 			scene.onPointerDown = (event, pointer) => {
 				if (event.button === 0 && pointer.pickedPoint) {
@@ -272,7 +321,7 @@ function handlePointerDown(event, scene, ground, sharedSpherePosition) {
 	}
 }
 
-const scene = createScene();
+const scene = await createScene();
 
 // Run the render loop
 engine.runRenderLoop(() => {
