@@ -24,18 +24,13 @@ const createScene = async () => {
 	Inspector.Show(scene, {});
 
 	// Create an ArcRotateCamera
-	const camera = new BABYLON.ArcRotateCamera(
-		"camera",
-		Math.PI / 2,
-		Math.PI / 4,
-		5,
-		new BABYLON.Vector3(0, 0, 0),
+	const camera = new BABYLON.FreeCamera(
+		"camera1",
+		new BABYLON.Vector3(0, 0, -6),
 		scene,
 	);
-	camera.attachControl(canvas, true);
-
-	camera.alpha = -Math.PI / 2;
-	camera.beta = Math.PI / 2;
+	camera.setTarget(BABYLON.Vector3.Zero());
+	camera.inputs.clear();
 
 	// Add a light
 	const light = new BABYLON.HemisphericLight(
@@ -103,7 +98,7 @@ const createScene = async () => {
 	);
 
 	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
-	function toggle2D3D(mesh, plane) {
+	function toggle2D3D(mesh: BABYLON.Mesh, plane: BABYLON.Plane) {
 		const distance = plane.signedDistanceTo(mesh.position);
 		console.log("Distance to plane:", distance);
 		if (
@@ -123,6 +118,7 @@ const createScene = async () => {
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
+		disableTeleportation: true,
 		floorMeshes: [ground],
 	});
 
@@ -283,6 +279,36 @@ const createScene = async () => {
 				}
 			}, BABYLON.PointerEventTypes.POINTERDOWN |
 				BABYLON.PointerEventTypes.POINTERUP);
+
+			xrHelper.input.onControllerAddedObservable.add((controller) => {
+				controller.onMotionControllerInitObservable.add((motionController) => {
+					if (motionController.handness === "left") {
+						const xr_ids = motionController.getComponentIds();
+						const thumbstickComponent = motionController.getComponent(
+							xr_ids[2],
+						); // xr-standard-thumbstick
+
+						thumbstickComponent.onAxisValueChangedObservable.add((axes) => {
+							const speed = 0.5;
+
+							const moveVector = new BABYLON.Vector3(0, 0, 0);
+
+							moveVector.x += axes.x * speed;
+							moveVector.y -= axes.y * speed;
+
+							const newPosition = sharedSpherePosition.add(moveVector);
+							sharedSpherePosition.copyFrom(newPosition);
+
+							// Send position update to the server
+							room.send("updatePosition", {
+								x: sharedSpherePosition.x,
+								y: sharedSpherePosition.y,
+								z: sharedSpherePosition.z,
+							});
+						});
+					}
+				});
+			});
 
 			// Player interaction: Click on the ground to change the position
 			scene.onPointerDown = (event, pointer) => {
