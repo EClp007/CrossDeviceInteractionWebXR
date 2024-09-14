@@ -19,6 +19,8 @@ const engine = new BABYLON.Engine(canvas, true, {
 
 const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 
+let isSphereGrabbed = false;
+
 const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
 	Inspector.Show(scene, {});
@@ -206,17 +208,13 @@ const createScene = async () => {
 				});
 			});
 
-			// VR Controller interaction: Grab and move the shared sphere
-			let grabbedMesh: BABYLON.AbstractMesh | null = null; // Store the grabbed mesh
+			let grabbedMesh: BABYLON.AbstractMesh | null = null;
 
 			scene.onPointerObservable.add((pointerInfo) => {
 				switch (pointerInfo.type) {
 					case BABYLON.PointerEventTypes.POINTERDOWN:
-						console.log("POINTER DOWN", pointerInfo);
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
-							// "Grab" it by attaching the picked mesh to the VR Controller
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-								// Check if 'pointerId' exists in the event
 								if ("pointerId" in pointerInfo.event) {
 									const pointerEvent = pointerInfo.event as PointerEvent;
 									const xrInput =
@@ -226,54 +224,38 @@ const createScene = async () => {
 									const motionController = xrInput?.motionController;
 									if (motionController) {
 										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
-										console.log("Grabbed mesh:", grabbedMesh);
 										if (grabbedMesh.name === "sphere") {
-											console.log("Shared Sphere is grabbed");
+											isSphereGrabbed = true;
 											grabbedMesh.setParent(motionController.rootMesh);
 										}
 									}
-								} else {
-									console.error("Event does not have pointerId");
 								}
-							} else {
-								// here is the non-xr support
 							}
 						}
 						break;
 
 					case BABYLON.PointerEventTypes.POINTERUP:
-						console.log("POINTER UP", pointerInfo);
 						if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-							if ("pointerId" in pointerInfo.event) {
-								const pointerEvent = pointerInfo.event as PointerEvent;
-								const xrInput =
-									xrHelper.pointerSelection.getXRControllerByPointerId(
-										pointerEvent.pointerId,
-									);
-								const motionController = xrInput?.motionController;
-								if (motionController) {
-									if (grabbedMesh) {
-										console.log("Released grabbed mesh:", grabbedMesh);
-										grabbedMesh.setParent(null, true); // Keep world position when unparenting
+							if (grabbedMesh && grabbedMesh.name === "sphere") {
+								isSphereGrabbed = false;
 
-										// Update sharedSpherePosition with the mesh's current position
-										sharedSpherePosition.copyFrom(grabbedMesh.position);
+								// Detach the sphere from the controller
+								grabbedMesh.setParent(null);
 
-										// Send position update to the server
-										room.send("updatePosition", {
-											x: grabbedMesh.position.x,
-											y: grabbedMesh.position.y,
-											z: grabbedMesh.position.z,
-										});
+								// Update sharedSpherePosition with the sphere's current position
+								sharedSpherePosition.copyFrom(
+									grabbedMesh.getAbsolutePosition(),
+								);
 
-										grabbedMesh = null; // Reset grabbed mesh
-									}
-								}
-							} else {
-								console.error("Event does not have pointerId");
+								// Send position update to the server
+								room.send("updatePosition", {
+									x: sharedSpherePosition.x,
+									y: sharedSpherePosition.y,
+									z: sharedSpherePosition.z,
+								});
+
+								grabbedMesh = null;
 							}
-						} else {
-							// here is the non-xr support
 						}
 						break;
 				}
@@ -331,17 +313,21 @@ const createScene = async () => {
 		});
 
 	scene.registerBeforeRender(() => {
-		// Smoothly interpolate the shared sphere's position
-		sharedSphere.position = BABYLON.Vector3.Lerp(
-			sharedSphere.position,
-			sharedSpherePosition,
-			0.05,
-		);
+		if (!isSphereGrabbed) {
+			// Smoothly interpolate the shared sphere's position
+			sharedSphere.position = BABYLON.Vector3.Lerp(
+				sharedSphere.position,
+				sharedSpherePosition,
+				0.05,
+			);
+		} else {
+			// Update sharedSpherePosition with the sphere's current position
+			sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
+		}
 
 		// Toggle between 2D and 3D based on the sphere's position relative to the plane
 		toggle2D3D(sharedSphere, plane);
 	});
-
 	return scene;
 };
 
