@@ -4,7 +4,7 @@ import "@babylonjs/loaders";
 import { Inspector } from "@babylonjs/inspector";
 
 // Get the canvas element
-const canvas = document.getElementById("renderCanvas");
+const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 
 if (!canvas) {
 	console.error("Canvas element not found");
@@ -130,8 +130,17 @@ const createScene = async () => {
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
 	);
 
+	interface RoomState {
+		sharedSphere: {
+			x: number;
+			y: number;
+			z: number;
+			onChange: (callback: () => void) => void;
+		};
+	}
+
 	colyseusSDK
-		.joinOrCreate("my_room")
+		.joinOrCreate<RoomState>("my_room")
 		.then((room) => {
 			console.log(`Connected to roomId: ${room.roomId}`);
 
@@ -202,27 +211,33 @@ const createScene = async () => {
 			});
 
 			// VR Controller interaction: Grab and move the shared sphere
-			let grabbedMesh = null; // Store the grabbed mesh
+			let grabbedMesh: BABYLON.AbstractMesh | null = null; // Store the grabbed mesh
 
 			scene.onPointerObservable.add((pointerInfo) => {
 				switch (pointerInfo.type) {
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						console.log("POINTER DOWN", pointerInfo);
-						if (pointerInfo.pickInfo.hit && pointerInfo.pickInfo.pickedMesh) {
+						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
 							// "Grab" it by attaching the picked mesh to the VR Controller
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-								const xrInput =
-									xrHelper.pointerSelection.getXRControllerByPointerId(
-										pointerInfo.event.pointerId,
-									);
-								const motionController = xrInput.motionController;
-								if (motionController) {
-									grabbedMesh = pointerInfo.pickInfo.pickedMesh;
-									console.log("Grabbed mesh:", grabbedMesh);
-									if (grabbedMesh.name === "sphere") {
-										console.log("Shared Sphere is grabbed");
-										grabbedMesh.setParent(motionController.rootMesh);
+								// Check if 'pointerId' exists in the event
+								if ("pointerId" in pointerInfo.event) {
+									const pointerEvent = pointerInfo.event as PointerEvent;
+									const xrInput =
+										xrHelper.pointerSelection.getXRControllerByPointerId(
+											pointerEvent.pointerId,
+										);
+									const motionController = xrInput?.motionController;
+									if (motionController) {
+										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
+										console.log("Grabbed mesh:", grabbedMesh);
+										if (grabbedMesh.name === "sphere") {
+											console.log("Shared Sphere is grabbed");
+											grabbedMesh.setParent(motionController.rootMesh);
+										}
 									}
+								} else {
+									console.error("Event does not have pointerId");
 								}
 							} else {
 								// here is the non-xr support
@@ -233,28 +248,33 @@ const createScene = async () => {
 					case BABYLON.PointerEventTypes.POINTERUP:
 						console.log("POINTER UP", pointerInfo);
 						if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-							const xrInput =
-								xrHelper.pointerSelection.getXRControllerByPointerId(
-									pointerInfo.event.pointerId,
-								);
-							const motionController = xrInput.motionController;
-							if (motionController) {
-								if (grabbedMesh) {
-									console.log("Released grabbed mesh:", grabbedMesh);
-									grabbedMesh.setParent(null, true); // Keep world position when unparenting
+							if ("pointerId" in pointerInfo.event) {
+								const pointerEvent = pointerInfo.event as PointerEvent;
+								const xrInput =
+									xrHelper.pointerSelection.getXRControllerByPointerId(
+										pointerEvent.pointerId,
+									);
+								const motionController = xrInput?.motionController;
+								if (motionController) {
+									if (grabbedMesh) {
+										console.log("Released grabbed mesh:", grabbedMesh);
+										grabbedMesh.setParent(null, true); // Keep world position when unparenting
 
-									// Update sharedSpherePosition with the mesh's current position
-									sharedSpherePosition.copyFrom(grabbedMesh.position);
+										// Update sharedSpherePosition with the mesh's current position
+										sharedSpherePosition.copyFrom(grabbedMesh.position);
 
-									// Send position update to the server
-									room.send("updatePosition", {
-										x: grabbedMesh.position.x,
-										y: grabbedMesh.position.y,
-										z: grabbedMesh.position.z,
-									});
+										// Send position update to the server
+										room.send("updatePosition", {
+											x: grabbedMesh.position.x,
+											y: grabbedMesh.position.y,
+											z: grabbedMesh.position.z,
+										});
 
-									grabbedMesh = null; // Reset grabbed mesh
+										grabbedMesh = null; // Reset grabbed mesh
+									}
 								}
+							} else {
+								console.error("Event does not have pointerId");
 							}
 						} else {
 							// here is the non-xr support
@@ -298,28 +318,6 @@ const createScene = async () => {
 
 	return scene;
 };
-
-// Function to handle pointer down events in VR
-function handlePointerDown(event, scene, ground, sharedSpherePosition) {
-	const pickInfo = scene.pick(
-		scene.pointerX,
-		scene.pointerY,
-		(mesh) => mesh === ground,
-	);
-	if (pickInfo.hit) {
-		const targetPosition = pickInfo.pickedPoint.clone();
-
-		// Update the sharedSpherePosition
-		sharedSpherePosition.copyFrom(targetPosition);
-
-		// Send position update to the server
-		room.send("updatePosition", {
-			x: targetPosition.x,
-			y: targetPosition.y,
-			z: targetPosition.z,
-		});
-	}
-}
 
 const scene = await createScene();
 
