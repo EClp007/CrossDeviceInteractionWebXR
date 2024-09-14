@@ -319,14 +319,16 @@ const createScene = async () => {
 	return scene;
 };
 
-const scene = await createScene();
+(async () => {
+	const scene = await createScene();
 
-// Run the render loop
-engine.runRenderLoop(() => {
-	scene.render();
-});
+	// Run the render loop
+	engine.runRenderLoop(() => {
+		scene.render();
+	});
 
-// Resize the engine on window resize
-window.addEventListener("resize", () => {
-	engine.resize();
-});
+	// Resize the engine on window resize
+	window.addEventListener("resize", () => {
+		engine.resize();
+	});
+})();
