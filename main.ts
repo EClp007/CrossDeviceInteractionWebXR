@@ -17,7 +17,7 @@ const engine = new BABYLON.Engine(canvas, true, {
 	stencil: true,
 });
 
-// GLobal variables
+// Global variables
 const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 let isSphereGrabbed = false;
 
@@ -28,7 +28,7 @@ const createScene = async () => {
 	// Enable the Inspector
 	Inspector.Show(scene, {});
 
-	// Create an FreeCamera, and set its position to (x:0, y:0, z:-6)
+	// Create a FreeCamera
 	const camera = new BABYLON.FreeCamera(
 		"camera1",
 		new BABYLON.Vector3(0, 0, -6),
@@ -57,7 +57,10 @@ const createScene = async () => {
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
 	// Create and add a colored material to the desktop
-	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
+	const desktopMaterial = new BABYLON.StandardMaterial(
+		"desktopMaterial",
+		scene,
+	);
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
 	// Add a desktop plane (2D Surface)
@@ -69,6 +72,9 @@ const createScene = async () => {
 		scene,
 	);
 	desktop.material = desktopMaterial;
+
+	const desktopPlaneZ = desktop.position.z;
+	const proximityThreshold = 2; // Threshold distance to trigger the movement
 
 	// Create and add a colored material to the ground
 	const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
@@ -99,21 +105,28 @@ const createScene = async () => {
 
 	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
 	function toggle2D3D(mesh: BABYLON.Mesh) {
-		if (
+		const renderAs3D = () => {
+			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
+			mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
+		};
+
+		if (isSphereGrabbed) {
+			// Always render as 3D when the sphere is grabbed
+			renderAs3D();
+		} else if (
 			mesh.position.x < desktopWidth / 2 + 1 &&
 			mesh.position.x > -desktopWidth / 2 - 1 &&
 			mesh.position.y < desktopHeight / 2 + 1 &&
 			mesh.position.y > -desktopHeight / 2 - 1
 		) {
-			// Render as 2D (flatten Z-axis)
+			// Render as 2D (flatten Z-axis) when over the desktop plane
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.001);
-			mesh.position.z = 0;
-			sharedSpherePosition.z = 0;
+			mesh.position.z = desktopPlaneZ;
+			sharedSpherePosition.z = desktopPlaneZ;
 			mesh.rotation = new BABYLON.Vector3(0, 0, 0);
 		} else {
 			// Render as 3D
-			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
-			mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
+			renderAs3D();
 		}
 	}
 
@@ -317,29 +330,35 @@ const createScene = async () => {
 
 	scene.registerBeforeRender(() => {
 		if (!isSphereGrabbed) {
-			// Smoothly interpolate the shared sphere's position on x and y axes
-			sharedSphere.position.x = lerp(
-				sharedSphere.position.x,
-				sharedSpherePosition.x,
+			// Smoothly interpolate the shared sphere's position
+			sharedSphere.position = BABYLON.Vector3.Lerp(
+				sharedSphere.position,
+				sharedSpherePosition,
 				0.05,
 			);
-			sharedSphere.position.y = lerp(
-				sharedSphere.position.y,
-				sharedSpherePosition.y,
-				0.05,
-			);
-			if (sharedSphere.scaling.z > 0.1) {
-				sharedSphere.position.z = lerp(
-					sharedSphere.position.z,
-					sharedSpherePosition.z,
-					0.05,
-				);
-			} else {
-				sharedSphere.position.z = 0;
-			}
 		} else {
 			// Update sharedSpherePosition with the sphere's current position
 			sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
+		}
+
+		// Check if the sphere is near the desktop plane
+		if (
+			!isSphereGrabbed &&
+			Math.abs(sharedSphere.position.z - desktopPlaneZ) < proximityThreshold
+		) {
+			// Move the sphere onto the desktop plane frame by frame
+			sharedSpherePosition.z = desktopPlaneZ;
+			sharedSphere.position.z = desktopPlaneZ;
+
+			// Optionally adjust x and y to align with the desktop
+			sharedSpherePosition.x = Math.max(
+				-desktopWidth / 2,
+				Math.min(sharedSpherePosition.x, desktopWidth / 2),
+			);
+			sharedSpherePosition.y = Math.max(
+				-desktopHeight / 2,
+				Math.min(sharedSpherePosition.y, desktopHeight / 2),
+			);
 		}
 
 		// Toggle between 2D and 3D based on the sphere's position relative to the plane
