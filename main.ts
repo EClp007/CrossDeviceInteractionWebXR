@@ -18,7 +18,7 @@ const engine = new BABYLON.Engine(canvas, true, {
 });
 
 // Global variables
-const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
+let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 let isSphereGrabbed = false;
 
 // Create the scene
@@ -127,6 +127,41 @@ const createScene = async () => {
 		} else {
 			// Render as 3D
 			renderAs3D();
+		}
+	}
+
+	const portal = BABYLON.MeshBuilder.CreateBox(
+		"portal",
+		{ width: 2, height: 3 },
+		scene,
+	);
+	portal.position = new BABYLON.Vector3(20, 1, 0);
+	const portalMaterial = new BABYLON.StandardMaterial("portalMaterial", scene);
+	portalMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 1);
+	portal.material = portalMaterial;
+
+	// Function to check if the sphere is near the portal and "pull" it into the portal
+	function checkPortalInteraction() {
+		const distanceToPortal = BABYLON.Vector3.Distance(
+			sharedSphere.position,
+			portal.position,
+		);
+		const portalThreshold = 1.5; // Distance threshold to activate the portal pull
+
+		// If the sphere is near the portal
+		if (distanceToPortal < portalThreshold) {
+			// Move the sphere smoothly toward the portal center
+			sharedSpherePosition = BABYLON.Vector3.Lerp(
+				sharedSphere.position,
+				portal.position,
+				0.1, // Smooth factor to control the speed of the pull
+			);
+
+			// once the sphere reaches the portal, teleport it
+			if (distanceToPortal < 0.2) {
+				sharedSphere.position = new BABYLON.Vector3(0, 1, 0);
+				console.log("Sphere entered the portal!");
+			}
 		}
 	}
 
@@ -324,10 +359,6 @@ const createScene = async () => {
 			console.error("Couldn't connect:", error);
 		});
 
-	function lerp(start: number, end: number, t: number) {
-		return start + t * (end - start);
-	}
-
 	scene.registerBeforeRender(() => {
 		if (!isSphereGrabbed) {
 			// Smoothly interpolate the shared sphere's position
@@ -341,10 +372,15 @@ const createScene = async () => {
 			sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
 		}
 
+		checkPortalInteraction();
+
 		// Check if the sphere is near the desktop plane
 		if (
 			!isSphereGrabbed &&
-			Math.abs(sharedSphere.position.z - desktopPlaneZ) < proximityThreshold
+			Math.abs(sharedSphere.position.z - desktopPlaneZ) < proximityThreshold &&
+			Math.abs(sharedSphere.position.x) <
+				desktopWidth / 2 + proximityThreshold &&
+			Math.abs(sharedSphere.position.y) < desktopHeight / 2 + proximityThreshold
 		) {
 			// Move the sphere onto the desktop plane frame by frame
 			sharedSpherePosition.z = desktopPlaneZ;
