@@ -17,15 +17,18 @@ const engine = new BABYLON.Engine(canvas, true, {
 	stencil: true,
 });
 
+// GLobal variables
 const sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
-
 let isSphereGrabbed = false;
 
+// Create the scene
 const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
+
+	// Enable the Inspector
 	Inspector.Show(scene, {});
 
-	// Create an ArcRotateCamera
+	// Create an FreeCamera, and set its position to (x:0, y:0, z:-6)
 	const camera = new BABYLON.FreeCamera(
 		"camera1",
 		new BABYLON.Vector3(0, 0, -6),
@@ -57,6 +60,7 @@ const createScene = async () => {
 	const desktopMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
+	// Add a desktop plane (2D Surface)
 	const desktopWidth = 10; // engine.getRenderWidth();
 	const desktopHeight = 6; // engine.getRenderHeight();
 	const desktop = BABYLON.MeshBuilder.CreatePlane(
@@ -93,16 +97,8 @@ const createScene = async () => {
 	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
 
-	// Define the plane at y = 1 (ground level)
-	const plane = BABYLON.Plane.FromPositionAndNormal(
-		new BABYLON.Vector3(0, 0, 0),
-		new BABYLON.Vector3(0, 0, 0),
-	);
-
 	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
-	function toggle2D3D(mesh: BABYLON.Mesh, plane: BABYLON.Plane) {
-		const distance = plane.signedDistanceTo(mesh.position);
-		console.log("Distance to plane:", distance);
+	function toggle2D3D(mesh: BABYLON.Mesh) {
 		if (
 			mesh.position.x < desktopWidth / 2 + 1 &&
 			mesh.position.x > -desktopWidth / 2 - 1 &&
@@ -111,6 +107,9 @@ const createScene = async () => {
 		) {
 			// Render as 2D (flatten Z-axis)
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.001);
+			mesh.position.z = 0;
+			sharedSpherePosition.z = 0;
+			mesh.rotation = new BABYLON.Vector3(0, 0, 0);
 		} else {
 			// Render as 3D
 			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
@@ -312,21 +311,39 @@ const createScene = async () => {
 			console.error("Couldn't connect:", error);
 		});
 
+	function lerp(start: number, end: number, t: number) {
+		return start + t * (end - start);
+	}
+
 	scene.registerBeforeRender(() => {
 		if (!isSphereGrabbed) {
-			// Smoothly interpolate the shared sphere's position
-			sharedSphere.position = BABYLON.Vector3.Lerp(
-				sharedSphere.position,
-				sharedSpherePosition,
+			// Smoothly interpolate the shared sphere's position on x and y axes
+			sharedSphere.position.x = lerp(
+				sharedSphere.position.x,
+				sharedSpherePosition.x,
 				0.05,
 			);
+			sharedSphere.position.y = lerp(
+				sharedSphere.position.y,
+				sharedSpherePosition.y,
+				0.05,
+			);
+			if (sharedSphere.scaling.z > 0.1) {
+				sharedSphere.position.z = lerp(
+					sharedSphere.position.z,
+					sharedSpherePosition.z,
+					0.05,
+				);
+			} else {
+				sharedSphere.position.z = 0;
+			}
 		} else {
 			// Update sharedSpherePosition with the sphere's current position
 			sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
 		}
 
 		// Toggle between 2D and 3D based on the sphere's position relative to the plane
-		toggle2D3D(sharedSphere, plane);
+		toggle2D3D(sharedSphere);
 	});
 	return scene;
 };
