@@ -312,6 +312,9 @@ const createScene = async () => {
 											isSphereGrabbed = true;
 											grabbedMesh.setParent(motionController.rootMesh);
 										}
+										if (grabbedMesh.name === "desktop") {
+											grabbedMesh.setParent(motionController.rootMesh);
+										}
 									}
 								}
 							}
@@ -339,6 +342,9 @@ const createScene = async () => {
 								});
 
 								grabbedMesh = null;
+							} else if (grabbedMesh && grabbedMesh.name === "desktop") {
+								grabbedMesh.setParent(null);
+								grabbedMesh = null;
 							}
 						}
 						break;
@@ -347,6 +353,13 @@ const createScene = async () => {
 				BABYLON.PointerEventTypes.POINTERUP);
 
 			scene.registerBeforeRender(() => {
+				if (isSphereGrabbed) {
+					// Update the sphere's material color when grabbed
+					sphereMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 1); // Blue color
+				} else {
+					// Update the sphere's material color when released
+					sphereMaterial.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.2); // Reddish color
+				}
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
 					sharedSphere.position = BABYLON.Vector3.Lerp(
