@@ -20,6 +20,9 @@ const engine = new BABYLON.Engine(canvas, true, {
 // Global variables
 let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 let isSphereGrabbed = false;
+let grabbedMesh: BABYLON.AbstractMesh | null = null;
+const leftThumbstickAxes = { x: 0, y: 0 };
+let leftMotionController: BABYLON.WebXRAbstractMotionController | null = null;
 
 // Create the scene
 const createScene = async () => {
@@ -255,7 +258,41 @@ const createScene = async () => {
 				});
 			});
 
-			let grabbedMesh: BABYLON.AbstractMesh | null = null;
+			const rotationSpeed = 0.05; // Adjust as needed
+			const movementSpeed = 0.05; // Adjust as needed
+
+			xrHelper.input.onControllerAddedObservable.add((controller) => {
+				controller.onMotionControllerInitObservable.add((motionController) => {
+					if (motionController.handness === "left") {
+						leftMotionController = motionController;
+						const xr_ids = motionController.getComponentIds();
+						const thumbstickComponent = motionController.getComponent(
+							xr_ids[2],
+						); // xr-standard-thumbstick
+
+						thumbstickComponent.onAxisValueChangedObservable.add((axes) => {
+							leftThumbstickAxes.x = axes.x;
+							leftThumbstickAxes.y = axes.y;
+						});
+					}
+				});
+			});
+
+			// Player interaction: Click on the ground to change the position
+			scene.onPointerDown = (event, pointer) => {
+				if (event.button === 0 && pointer.pickedPoint) {
+					const targetPosition = pointer.pickedPoint.clone();
+
+					// Send position update to the server
+					room.send("updatePosition", {
+						x: targetPosition.x,
+						y: targetPosition.y,
+						z: targetPosition.z,
+					});
+				} else {
+					console.warn("Pointer did not hit any mesh or ground.");
+				}
+			};
 
 			scene.onPointerObservable.add((pointerInfo) => {
 				switch (pointerInfo.type) {
@@ -309,97 +346,115 @@ const createScene = async () => {
 			}, BABYLON.PointerEventTypes.POINTERDOWN |
 				BABYLON.PointerEventTypes.POINTERUP);
 
-			xrHelper.input.onControllerAddedObservable.add((controller) => {
-				controller.onMotionControllerInitObservable.add((motionController) => {
-					if (motionController.handness === "left") {
-						const xr_ids = motionController.getComponentIds();
-						const thumbstickComponent = motionController.getComponent(
-							xr_ids[2],
-						); // xr-standard-thumbstick
+			scene.registerBeforeRender(() => {
+				if (!isSphereGrabbed) {
+					// Smoothly interpolate the shared sphere's position
+					sharedSphere.position = BABYLON.Vector3.Lerp(
+						sharedSphere.position,
+						sharedSpherePosition,
+						0.05,
+					);
+				} else {
+					// Update sharedSpherePosition with the sphere's current position
+					sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
+				}
 
-						thumbstickComponent.onAxisValueChangedObservable.add((axes) => {
-							const speed = 0.5;
+				checkPortalInteraction();
 
-							const moveVector = new BABYLON.Vector3(0, 0, 0);
+				// Check if the sphere is near the desktop plane
+				if (
+					!isSphereGrabbed &&
+					Math.abs(sharedSphere.position.z - desktopPlaneZ) <
+						proximityThreshold &&
+					Math.abs(sharedSphere.position.x) <
+						desktopWidth / 2 + proximityThreshold &&
+					Math.abs(sharedSphere.position.y) <
+						desktopHeight / 2 + proximityThreshold
+				) {
+					// Move the sphere onto the desktop plane frame by frame
+					sharedSpherePosition.z = desktopPlaneZ;
+					sharedSphere.position.z = desktopPlaneZ;
 
-							moveVector.x += axes.x * speed;
-							moveVector.y -= axes.y * speed;
+					// Optionally adjust x and y to align with the desktop
+					sharedSpherePosition.x = Math.max(
+						-desktopWidth / 2,
+						Math.min(sharedSpherePosition.x, desktopWidth / 2),
+					);
+					sharedSpherePosition.y = Math.max(
+						-desktopHeight / 2,
+						Math.min(sharedSpherePosition.y, desktopHeight / 2),
+					);
+				}
 
-							const newPosition = sharedSpherePosition.add(moveVector);
-							sharedSpherePosition.copyFrom(newPosition);
+				// Toggle between 2D and 3D based on the sphere's position relative to the plane
+				toggle2D3D(sharedSphere);
 
-							// Send position update to the server
+				// Continuous movement for the grabbed sphere
+				if (isSphereGrabbed && grabbedMesh && grabbedMesh.name === "sphere") {
+					if (
+						leftMotionController &&
+						(leftThumbstickAxes.x !== 0 || leftThumbstickAxes.y !== 0)
+					) {
+						// Rotate the sphere around its local Y-axis
+						grabbedMesh.rotation.y += leftThumbstickAxes.x * rotationSpeed;
+
+						// Get the controller's forward vector
+						const controllerForward = new BABYLON.Vector3(0, 0, 1); // Local forward vector
+						const controllerRotationQuaternion =
+							leftMotionController.rootMesh?.rotationQuaternion;
+
+						if (controllerRotationQuaternion) {
+							// Transform to world coordinates
+							const worldMatrix = new BABYLON.Matrix();
+							controllerRotationQuaternion.toRotationMatrix(worldMatrix);
+							const worldForward = BABYLON.Vector3.TransformNormal(
+								controllerForward,
+								worldMatrix,
+							).normalize();
+
+							// Move along the forward vector
+							const movementVector = worldForward.scale(
+								leftThumbstickAxes.y * movementSpeed,
+							);
+
+							// Update the sphere's position
+							grabbedMesh.position.addInPlace(movementVector);
+
+							// Update sharedSpherePosition
+							sharedSpherePosition.copyFrom(grabbedMesh.getAbsolutePosition());
+
+							// Send position and rotation update to the server
 							room.send("updatePosition", {
 								x: sharedSpherePosition.x,
 								y: sharedSpherePosition.y,
 								z: sharedSpherePosition.z,
 							});
-						});
+						} else {
+							console.warn("Controller's RotationQuaternion is not available.");
+						}
 					}
-				});
-			});
-
-			// Player interaction: Click on the ground to change the position
-			scene.onPointerDown = (event, pointer) => {
-				if (event.button === 0 && pointer.pickedPoint) {
-					const targetPosition = pointer.pickedPoint.clone();
+				} else if (leftThumbstickAxes.x !== 0 || leftThumbstickAxes.y !== 0) {
+					// Move the sphere when it's not grabbed
+					const speed = 0.5;
+					const moveVector = new BABYLON.Vector3(0, 0, 0);
+					moveVector.x += leftThumbstickAxes.x * speed;
+					moveVector.y -= leftThumbstickAxes.y * speed;
+					const newPosition = sharedSpherePosition.add(moveVector);
+					sharedSpherePosition.copyFrom(newPosition);
 
 					// Send position update to the server
 					room.send("updatePosition", {
-						x: targetPosition.x,
-						y: targetPosition.y,
-						z: targetPosition.z,
+						x: sharedSpherePosition.x,
+						y: sharedSpherePosition.y,
+						z: sharedSpherePosition.z,
 					});
-				} else {
-					console.warn("Pointer did not hit any mesh or ground.");
 				}
-			};
+			});
 		})
 		.catch((error) => {
 			console.error("Couldn't connect:", error);
 		});
 
-	scene.registerBeforeRender(() => {
-		if (!isSphereGrabbed) {
-			// Smoothly interpolate the shared sphere's position
-			sharedSphere.position = BABYLON.Vector3.Lerp(
-				sharedSphere.position,
-				sharedSpherePosition,
-				0.05,
-			);
-		} else {
-			// Update sharedSpherePosition with the sphere's current position
-			sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
-		}
-
-		checkPortalInteraction();
-
-		// Check if the sphere is near the desktop plane
-		if (
-			!isSphereGrabbed &&
-			Math.abs(sharedSphere.position.z - desktopPlaneZ) < proximityThreshold &&
-			Math.abs(sharedSphere.position.x) <
-				desktopWidth / 2 + proximityThreshold &&
-			Math.abs(sharedSphere.position.y) < desktopHeight / 2 + proximityThreshold
-		) {
-			// Move the sphere onto the desktop plane frame by frame
-			sharedSpherePosition.z = desktopPlaneZ;
-			sharedSphere.position.z = desktopPlaneZ;
-
-			// Optionally adjust x and y to align with the desktop
-			sharedSpherePosition.x = Math.max(
-				-desktopWidth / 2,
-				Math.min(sharedSpherePosition.x, desktopWidth / 2),
-			);
-			sharedSpherePosition.y = Math.max(
-				-desktopHeight / 2,
-				Math.min(sharedSpherePosition.y, desktopHeight / 2),
-			);
-		}
-
-		// Toggle between 2D and 3D based on the sphere's position relative to the plane
-		toggle2D3D(sharedSphere);
-	});
 	return scene;
 };
 
