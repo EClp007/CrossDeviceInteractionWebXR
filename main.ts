@@ -28,6 +28,19 @@ let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
 
+let desktopBounds: {
+	minX: number;
+	maxX: number;
+	minY: number;
+	maxY: number;
+	minZ: number;
+	maxZ: number;
+} | null = null;
+
+let transformedCorners: BABYLON.Vector3[] = [];
+const radiusSphere = 1;
+let desktop: BABYLON.Mesh;
+
 // Create the scene
 const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
@@ -73,7 +86,7 @@ const createScene = async () => {
 	// Add a desktop plane (2D Surface)
 	const desktopWidth = 10; // engine.getRenderWidth();
 	const desktopHeight = 6; // engine.getRenderHeight();
-	const desktop = BABYLON.MeshBuilder.CreatePlane(
+	desktop = BABYLON.MeshBuilder.CreatePlane(
 		"desktop",
 		{ width: desktopWidth, height: desktopHeight },
 		scene,
@@ -103,13 +116,12 @@ const createScene = async () => {
 	// Add a single shared sphere to cast shadows
 	const sharedSphere = BABYLON.MeshBuilder.CreateSphere(
 		"sphere",
-		{ diameter: 2 },
+		{ diameter: 2 * radiusSphere },
 		scene,
 	);
 	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
 	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
-
 	// Function to project the mesh onto a specific side of the desktop plane
 	function projectOntoDesktop(
 		mesh: BABYLON.Mesh,
@@ -138,9 +150,28 @@ const createScene = async () => {
 		return newPosition;
 	}
 
+	function isInBounds(mesh: BABYLON.Mesh) {
+		if (!desktopBounds) return false;
+		if (
+			mesh.position.x <= desktopBounds.maxX + radiusSphere &&
+			mesh.position.x >= desktopBounds.minX - radiusSphere &&
+			mesh.position.y <= desktopBounds.maxY + radiusSphere &&
+			mesh.position.y >= desktopBounds.minY - radiusSphere &&
+			mesh.position.z <= desktopBounds.maxZ + radiusSphere &&
+			mesh.position.z >= desktopBounds.minZ - radiusSphere
+		) {
+			return true;
+		}
+		return false;
+	}
+
 	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
 	// Updated toggle2D3D function with rotation that matches the desktop
-	function toggle2D3D(mesh: BABYLON.Mesh) {
+	function toggle2D3D(
+		mesh: BABYLON.Mesh,
+		projectedPoint: BABYLON.Vector3,
+		distanceSphereToDesktop: number,
+	) {
 		const renderAs3D = () => {
 			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
 			mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
@@ -151,73 +182,6 @@ const createScene = async () => {
 			renderAs3D();
 		} else {
 			// Calculate the current position of the desktop
-			const halfWidth = desktopWidth / 2;
-			const halfHeight = desktopHeight / 2;
-
-			// Define desktop corners
-			const corners = [
-				new BABYLON.Vector3(-halfWidth, halfHeight, 0), // Top left
-				new BABYLON.Vector3(halfWidth, halfHeight, 0), // Top right
-				new BABYLON.Vector3(halfWidth, -halfHeight, 0), // Bottom right
-				new BABYLON.Vector3(-halfWidth, -halfHeight, 0), // Bottom left
-			];
-
-			const worldMatrix = desktop.getWorldMatrix();
-			const transformedCorners = corners.map((corner) =>
-				BABYLON.Vector3.TransformCoordinates(corner, worldMatrix),
-			);
-
-			// Initialize bounding values for the desktop
-			const desktopBounds = transformedCorners.reduce(
-				(bounds, corner) => {
-					bounds.minX = Math.min(bounds.minX, corner.x);
-					bounds.maxX = Math.max(bounds.maxX, corner.x);
-					bounds.minY = Math.min(bounds.minY, corner.y);
-					bounds.maxY = Math.max(bounds.maxY, corner.y);
-					bounds.minZ = Math.min(bounds.minZ, corner.z);
-					bounds.maxZ = Math.max(bounds.maxZ, corner.z);
-					return bounds;
-				},
-				{
-					minX: Number.POSITIVE_INFINITY,
-					maxX: Number.NEGATIVE_INFINITY,
-					minY: Number.POSITIVE_INFINITY,
-					maxY: Number.NEGATIVE_INFINITY,
-					minZ: Number.POSITIVE_INFINITY,
-					maxZ: Number.NEGATIVE_INFINITY,
-				},
-			);
-
-			// Calculate the directional vectors of the desktop, taking rotation into account
-			desktopNormal = BABYLON.Vector3.TransformNormal(
-				BABYLON.Axis.Z,
-				desktop.getWorldMatrix(),
-			).normalize(); // Normal vector of the desktop (forward)
-
-			upDeskopVector = BABYLON.Vector3.TransformNormal(
-				BABYLON.Axis.Y,
-				desktop.getWorldMatrix(),
-			).normalize(); // Upward direction of the desktop
-
-			leftDeskopVector = BABYLON.Vector3.Cross(
-				upDeskopVector,
-				desktopNormal,
-			).normalize(); // Left directional vector of the desktop
-
-			const radius = 1; // Sphere radius
-			const normal = desktopNormal; // Normal of the desktop
-
-			// Step 2: Get the center of the sphere
-			const sphereCenter = mesh.position;
-
-			// Step 3: Calculate plane D (ax + by + cz = d)
-			const d = -BABYLON.Vector3.Dot(normal, desktop.position);
-
-			// Step 4: Calculate the distance from the sphere center to the plane
-			const distance = BABYLON.Vector3.Dot(normal, sphereCenter) + d;
-
-			// Project the point onto the desktop plane
-			const projectedPoint = sphereCenter.subtract(normal.scale(distance));
 
 			// Compute two vectors that span the desktop plane
 			const u = transformedCorners[1].subtract(transformedCorners[0]);
@@ -236,26 +200,19 @@ const createScene = async () => {
 				uParam <= 1 &&
 				vParam >= 0 &&
 				vParam <= 1 &&
-				distance > 0
+				distanceSphereToDesktop > 0
 			) {
 				console.log("The sphere is directly behind the plane.");
 				mesh.position = projectedPoint;
 				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 				mesh.rotation = desktop.rotation.clone();
 				sharedSpherePosition.copyFrom(mesh.position);
-			} else if (distance > 0) {
+			} else if (distanceSphereToDesktop > 0) {
 				console.log("The sphere is behind the plane but not directly behind.");
 			}
 
 			// If the sphere is on the desktop plane
-			if (
-				mesh.position.x <= desktopBounds.maxX + radius &&
-				mesh.position.x >= desktopBounds.minX - radius &&
-				mesh.position.y <= desktopBounds.maxY + radius &&
-				mesh.position.y >= desktopBounds.minY - radius &&
-				mesh.position.z <= desktopBounds.maxZ + radius &&
-				mesh.position.z >= desktopBounds.minZ - radius
-			) {
+			if (isInBounds(mesh)) {
 				mesh.position = projectedPoint;
 				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 				mesh.rotation = desktop.rotation.clone();
@@ -267,6 +224,40 @@ const createScene = async () => {
 			}
 		}
 	}
+
+	/*
+	function animateMagnet(
+		mesh: BABYLON.Mesh,
+		distanceSphereToDesktop: number,
+		threshold = 3,
+	) {
+		if (!desktopBounds) return;
+
+		console.log(
+			"Math.abs(distanceSphereToDesktop) ",
+			Math.abs(distanceSphereToDesktop),
+		);
+		console.log("!isInBounds(mesh)", !isInBounds(mesh));
+		if (!isInBounds(mesh) && Math.abs(distanceSphereToDesktop) <= 2) {
+			console.log("meshPositionX", mesh.position.x);
+			console.log(
+				"desktopBounds.minX - threshold",
+				desktopBounds.minX - threshold,
+			);
+			if (mesh.position.x < desktopBounds.minX - threshold) {
+				mesh.position.x = desktopBounds.minX;
+				sharedSpherePosition.copyFrom(mesh.position);
+				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
+					new BABYLON.Color3(0, 1, 0);
+			}
+			if (mesh.position.x > desktopBounds.maxX + threshold) {
+				mesh.position.x = desktopBounds.maxX;
+				sharedSpherePosition.copyFrom(mesh.position);
+				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
+					new BABYLON.Color3(0, 1, 0);
+			}
+		}
+	}*/
 
 	const portal = BABYLON.MeshBuilder.CreateBox(
 		"portal",
@@ -557,36 +548,78 @@ const createScene = async () => {
 					sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
 				}
 
-				// checkPortalInteraction();
+				const halfWidth = desktopWidth / 2;
+				const halfHeight = desktopHeight / 2;
 
-				// Check if the sphere is near the desktop plane
-				/*
-				if (
-					!isSphereGrabbed &&
-					Math.abs(sharedSphere.position.z - desktopPlaneZ) <
-						proximityThreshold &&
-					Math.abs(sharedSphere.position.x) <
-						desktopWidth / 2 + proximityThreshold &&
-					Math.abs(sharedSphere.position.y) <
-						desktopHeight / 2 + proximityThreshold
-				) {
-					// Move the sphere onto the desktop plane frame by frame
-					sharedSpherePosition.z = desktopPlaneZ;
-					sharedSphere.position.z = desktopPlaneZ;
+				// Define desktop corners
+				const corners = [
+					new BABYLON.Vector3(-halfWidth, halfHeight, 0), // Top left
+					new BABYLON.Vector3(halfWidth, halfHeight, 0), // Top right
+					new BABYLON.Vector3(halfWidth, -halfHeight, 0), // Bottom right
+					new BABYLON.Vector3(-halfWidth, -halfHeight, 0), // Bottom left
+				];
 
-					// Optionally adjust x and y to align with the desktop
-					sharedSpherePosition.x = Math.max(
-						-desktopWidth / 2,
-						Math.min(sharedSpherePosition.x, desktopWidth / 2),
-					);
-					sharedSpherePosition.y = Math.max(
-						-desktopHeight / 2,
-						Math.min(sharedSpherePosition.y, desktopHeight / 2),
-					);
-				}*/
+				const worldMatrix = desktop.getWorldMatrix();
+				transformedCorners = corners.map((corner) =>
+					BABYLON.Vector3.TransformCoordinates(corner, worldMatrix),
+				);
 
-				// Toggle between 2D and 3D based on the sphere's position relative to the plane
-				toggle2D3D(sharedSphere);
+				// Initialize bounding values for the desktop
+				desktopBounds = transformedCorners.reduce(
+					(bounds, corner) => {
+						bounds.minX = Math.min(bounds.minX, corner.x);
+						bounds.maxX = Math.max(bounds.maxX, corner.x);
+						bounds.minY = Math.min(bounds.minY, corner.y);
+						bounds.maxY = Math.max(bounds.maxY, corner.y);
+						bounds.minZ = Math.min(bounds.minZ, corner.z);
+						bounds.maxZ = Math.max(bounds.maxZ, corner.z);
+						return bounds;
+					},
+					{
+						minX: Number.POSITIVE_INFINITY,
+						maxX: Number.NEGATIVE_INFINITY,
+						minY: Number.POSITIVE_INFINITY,
+						maxY: Number.NEGATIVE_INFINITY,
+						minZ: Number.POSITIVE_INFINITY,
+						maxZ: Number.NEGATIVE_INFINITY,
+					},
+				);
+
+				// Calculate the directional vectors of the desktop, taking rotation into account
+				desktopNormal = BABYLON.Vector3.TransformNormal(
+					BABYLON.Axis.Z,
+					desktop.getWorldMatrix(),
+				).normalize(); // Normal vector of the desktop (forward)
+
+				upDeskopVector = BABYLON.Vector3.TransformNormal(
+					BABYLON.Axis.Y,
+					desktop.getWorldMatrix(),
+				).normalize(); // Upward direction of the desktop
+
+				leftDeskopVector = BABYLON.Vector3.Cross(
+					upDeskopVector,
+					desktopNormal,
+				).normalize(); // Left directional vector of the desktop
+
+				const normal = desktopNormal; // Normal of the desktop
+
+				// Step 2: Get the center of the sphere
+				const sphereCenter = sharedSphere.position;
+
+				// Step 3: Calculate plane D (ax + by + cz = d)
+				const d = -BABYLON.Vector3.Dot(normal, desktop.position);
+
+				// Step 4: Calculate the distance from the sphere center to the plane
+				const distanceSphereToDesktop =
+					BABYLON.Vector3.Dot(normal, sphereCenter) + d;
+
+				// Project the point onto the desktop plane
+				const projectedPoint = sphereCenter.subtract(
+					normal.scale(distanceSphereToDesktop),
+				);
+
+				toggle2D3D(sharedSphere, projectedPoint, distanceSphereToDesktop);
+				// animateMagnet(sharedSphere, distanceSphereToDesktop);
 
 				// Continuous movement for the grabbed sphere
 				if (isSphereGrabbed && grabbedMesh && grabbedMesh.name === "sphere") {
