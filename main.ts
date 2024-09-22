@@ -154,11 +154,12 @@ const createScene = async () => {
 			const halfWidth = desktopWidth / 2;
 			const halfHeight = desktopHeight / 2;
 
+			// Define desktop corners
 			const corners = [
-				new BABYLON.Vector3(-halfWidth, halfHeight, 0), // Oben links
-				new BABYLON.Vector3(halfWidth, halfHeight, 0), // Oben rechts
-				new BABYLON.Vector3(halfWidth, -halfHeight, 0), // Unten rechts
-				new BABYLON.Vector3(-halfWidth, -halfHeight, 0), // Unten links
+				new BABYLON.Vector3(-halfWidth, halfHeight, 0), // Top left
+				new BABYLON.Vector3(halfWidth, halfHeight, 0), // Top right
+				new BABYLON.Vector3(halfWidth, -halfHeight, 0), // Bottom right
+				new BABYLON.Vector3(-halfWidth, -halfHeight, 0), // Bottom left
 			];
 
 			const worldMatrix = desktop.getWorldMatrix();
@@ -166,134 +167,102 @@ const createScene = async () => {
 				BABYLON.Vector3.TransformCoordinates(corner, worldMatrix),
 			);
 
-			let minX = Number.POSITIVE_INFINITY;
-			let maxX = Number.NEGATIVE_INFINITY;
-			let minY = Number.POSITIVE_INFINITY;
-			let maxY = Number.NEGATIVE_INFINITY;
-			let minZ = Number.POSITIVE_INFINITY;
-			let maxZ = Number.NEGATIVE_INFINITY;
-
-			for (const corner of transformedCorners) {
-				if (corner.x < minX) minX = corner.x;
-				if (corner.x > maxX) maxX = corner.x;
-				if (corner.y < minY) minY = corner.y;
-				if (corner.y > maxY) maxY = corner.y;
-				if (corner.z < minZ) minZ = corner.z;
-				if (corner.z > maxZ) maxZ = corner.z;
-			}
-
-			const desktopBounds = {
-				minX,
-				maxX,
-				minY,
-				maxY,
-				minZ,
-				maxZ,
-			};
-
-			console.log(desktopBounds);
-
-			// Set a threshold for "direct" proximity
-			const threshold = 0.9; // Sensitivity threshold
-			const distanceLimit = 30; // Maximum distance to be considered "near"
+			// Initialize bounding values for the desktop
+			const desktopBounds = transformedCorners.reduce(
+				(bounds, corner) => {
+					bounds.minX = Math.min(bounds.minX, corner.x);
+					bounds.maxX = Math.max(bounds.maxX, corner.x);
+					bounds.minY = Math.min(bounds.minY, corner.y);
+					bounds.maxY = Math.max(bounds.maxY, corner.y);
+					bounds.minZ = Math.min(bounds.minZ, corner.z);
+					bounds.maxZ = Math.max(bounds.maxZ, corner.z);
+					return bounds;
+				},
+				{
+					minX: Number.POSITIVE_INFINITY,
+					maxX: Number.NEGATIVE_INFINITY,
+					minY: Number.POSITIVE_INFINITY,
+					maxY: Number.NEGATIVE_INFINITY,
+					minZ: Number.POSITIVE_INFINITY,
+					maxZ: Number.NEGATIVE_INFINITY,
+				},
+			);
 
 			// Calculate the directional vectors of the desktop, taking rotation into account
 			desktopNormal = BABYLON.Vector3.TransformNormal(
 				BABYLON.Axis.Z,
 				desktop.getWorldMatrix(),
 			).normalize(); // Normal vector of the desktop (forward)
+
 			upDeskopVector = BABYLON.Vector3.TransformNormal(
 				BABYLON.Axis.Y,
 				desktop.getWorldMatrix(),
 			).normalize(); // Upward direction of the desktop
+
 			leftDeskopVector = BABYLON.Vector3.Cross(
 				upDeskopVector,
 				desktopNormal,
 			).normalize(); // Left directional vector of the desktop
 
-			// Get the world matrix of the desktop and invert it to transform to local space
-			const inverseDesktopMatrix = desktop.getWorldMatrix().clone().invert();
+			const radius = 1; // Sphere radius
+			const normal = desktopNormal; // Normal of the desktop
 
-			// Transform the mesh position into the desktop's local space
-			const meshLocalPosition = BABYLON.Vector3.TransformCoordinates(
-				mesh.position,
-				inverseDesktopMatrix,
-			);
+			// Step 2: Get the center of the sphere
+			const sphereCenter = mesh.position;
 
-			// Since we're now in local space, subtract the desktop's local position (which is essentially (0, 0, 0) in this frame)
-			const planeToItem = meshLocalPosition; // This is now the vector from the desktop to the mesh in the desktop's local space
+			// Step 3: Calculate plane D (ax + by + cz = d)
+			const d = -BABYLON.Vector3.Dot(normal, desktop.position);
 
-			// Calculate the dot products
-			const leftDotProduct = BABYLON.Vector3.Dot(planeToItem, leftDeskopVector);
-			const frontDotProduct = BABYLON.Vector3.Dot(planeToItem, desktopNormal);
-			const upDotProduct = BABYLON.Vector3.Dot(planeToItem, upDeskopVector);
+			// Step 4: Calculate the distance from the sphere center to the plane
+			const distance = BABYLON.Vector3.Dot(normal, sphereCenter) + d;
 
-			// Check if the mesh is directly above the desktop
-			const isDirectlyOverDesktop =
-				Math.abs(leftDotProduct) < threshold &&
-				Math.abs(frontDotProduct) < threshold &&
-				upDotProduct > 0 &&
-				upDotProduct <= distanceLimit;
+			// Project the point onto the desktop plane
+			const projectedPoint = sphereCenter.subtract(normal.scale(distance));
 
-			console.log("isDieectlyOverDesktop", isDirectlyOverDesktop);
+			// Compute two vectors that span the desktop plane
+			const u = transformedCorners[1].subtract(transformedCorners[0]);
+			const v = transformedCorners[3].subtract(transformedCorners[0]);
 
-			// Check if the mesh is directly below the desktop
-			const isDirectlyUnderDesktop =
-				Math.abs(leftDotProduct) < threshold &&
-				Math.abs(frontDotProduct) < threshold &&
-				upDotProduct < 0 &&
-				Math.abs(upDotProduct) <= distanceLimit;
+			// Compute the vector from the corner to the projected point
+			const w = projectedPoint.subtract(transformedCorners[0]);
 
-			console.log("isDirectlyUnderDesktop", isDirectlyUnderDesktop);
+			// Calculate the 2D coordinates of the projected point in the desktop plane
+			const uParam = BABYLON.Vector3.Dot(u, w) / BABYLON.Vector3.Dot(u, u);
+			const vParam = BABYLON.Vector3.Dot(v, w) / BABYLON.Vector3.Dot(v, v);
 
-			// Check if the mesh is directly on the left or right side of the desktop
-			const isDirectlyOnSide =
-				Math.abs(frontDotProduct) < threshold &&
-				Math.abs(upDotProduct) < threshold &&
-				Math.abs(leftDotProduct) <= distanceLimit;
-
-			console.log("isDirectlyOnSide", isDirectlyOnSide);
-
-			console.log(
-				"meshPosition",
-				mesh.position.x < desktopBounds.maxX &&
-					mesh.position.x > desktopBounds.minX &&
-					mesh.position.y < desktopBounds.maxY &&
-					mesh.position.y > desktopBounds.minY,
-			);
-
-			// Check if the sphere is within the boundaries of the desktop or within the defined limits
+			// Check if the point is within the desktop plane bounds (0 <= uParam <= 1 and 0 <= vParam <= 1)
 			if (
-				(mesh.position.x < desktopBounds.maxX &&
-					mesh.position.x > desktopBounds.minX &&
-					mesh.position.y < desktopBounds.maxY &&
-					mesh.position.y > desktopBounds.minY) ||
-				isDirectlyOverDesktop ||
-				isDirectlyUnderDesktop ||
-				isDirectlyOnSide
+				uParam >= 0 &&
+				uParam <= 1 &&
+				vParam >= 0 &&
+				vParam <= 1 &&
+				distance > 0
 			) {
-				// Project the sphere's position onto the desktop's plane
-				const projection = desktopNormal.scale(
-					BABYLON.Vector3.Dot(planeToItem, desktopNormal),
-				);
-				const newPosition = projectOntoDesktop(
-					mesh,
-					desktopNormal,
-					planeToItem,
-					"back",
-				);
-
-				// Set the new position for the sphere
-				mesh.position = newPosition;
-				sharedSpherePosition.copyFrom(mesh.position);
-
-				// Set the mesh to 2D scaling
+				console.log("The sphere is directly behind the plane.");
+				mesh.position = projectedPoint;
 				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
-
-				// Apply the desktop's rotation to the mesh
 				mesh.rotation = desktop.rotation.clone();
+				sharedSpherePosition.copyFrom(mesh.position);
+			} else if (distance > 0) {
+				console.log("The sphere is behind the plane but not directly behind.");
+			}
+
+			// If the sphere is on the desktop plane
+			if (
+				mesh.position.x <= desktopBounds.maxX + radius &&
+				mesh.position.x >= desktopBounds.minX - radius &&
+				mesh.position.y <= desktopBounds.maxY + radius &&
+				mesh.position.y >= desktopBounds.minY - radius &&
+				mesh.position.z <= desktopBounds.maxZ + radius &&
+				mesh.position.z >= desktopBounds.minZ - radius
+			) {
+				mesh.position = projectedPoint;
+				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
+				mesh.rotation = desktop.rotation.clone();
+				sharedSpherePosition.copyFrom(mesh.position);
+				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
+					new BABYLON.Color3(0, 1, 0);
 			} else {
-				// Otherwise, render as 3D
 				renderAs3D();
 			}
 		}
