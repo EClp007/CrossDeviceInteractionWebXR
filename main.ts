@@ -38,7 +38,7 @@ const createScene = async () => {
 	// Create a FreeCamera
 	const camera = new BABYLON.FreeCamera(
 		"camera1",
-		new BABYLON.Vector3(0, 0, -6),
+		new BABYLON.Vector3(0, 0, -20),
 		scene,
 	);
 	camera.setTarget(BABYLON.Vector3.Zero());
@@ -110,6 +110,34 @@ const createScene = async () => {
 	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
 
+	// Function to project the mesh onto a specific side of the desktop plane
+	function projectOntoDesktop(
+		mesh: BABYLON.Mesh,
+		desktopNormal: BABYLON.DeepImmutableObject<BABYLON.Vector3>,
+		planeToItem: BABYLON.DeepImmutableObject<BABYLON.Vector3>,
+		desiredSide = "back",
+	) {
+		// Calculate the projection distance
+		let dotProduct = BABYLON.Vector3.Dot(planeToItem, desktopNormal);
+
+		// Check the current side of the mesh relative to the desktop
+		if (desiredSide === "front" && dotProduct > 0) {
+			// If the mesh is on the "back" side, invert the dotProduct to project to the "front"
+			dotProduct = Math.abs(dotProduct);
+		} else if (desiredSide === "back" && dotProduct < 0) {
+			// If the mesh is on the "front" side, invert the dotProduct to project to the "back"
+			dotProduct = -Math.abs(dotProduct);
+		}
+
+		// Calculate the projection vector
+		const projection = desktopNormal.scale(dotProduct);
+
+		// Calculate the new projected position
+		const newPosition = mesh.position.subtract(projection);
+
+		return newPosition;
+	}
+
 	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
 	// Updated toggle2D3D function with rotation that matches the desktop
 	function toggle2D3D(mesh: BABYLON.Mesh) {
@@ -123,18 +151,51 @@ const createScene = async () => {
 			renderAs3D();
 		} else {
 			// Calculate the current position of the desktop
-			const desktopPosition = desktop.position;
+			const halfWidth = desktopWidth / 2;
+			const halfHeight = desktopHeight / 2;
+
+			const corners = [
+				new BABYLON.Vector3(-halfWidth, halfHeight, 0), // Oben links
+				new BABYLON.Vector3(halfWidth, halfHeight, 0), // Oben rechts
+				new BABYLON.Vector3(halfWidth, -halfHeight, 0), // Unten rechts
+				new BABYLON.Vector3(-halfWidth, -halfHeight, 0), // Unten links
+			];
+
+			const worldMatrix = desktop.getWorldMatrix();
+			const transformedCorners = corners.map((corner) =>
+				BABYLON.Vector3.TransformCoordinates(corner, worldMatrix),
+			);
+
+			let minX = Number.POSITIVE_INFINITY;
+			let maxX = Number.NEGATIVE_INFINITY;
+			let minY = Number.POSITIVE_INFINITY;
+			let maxY = Number.NEGATIVE_INFINITY;
+			let minZ = Number.POSITIVE_INFINITY;
+			let maxZ = Number.NEGATIVE_INFINITY;
+
+			for (const corner of transformedCorners) {
+				if (corner.x < minX) minX = corner.x;
+				if (corner.x > maxX) maxX = corner.x;
+				if (corner.y < minY) minY = corner.y;
+				if (corner.y > maxY) maxY = corner.y;
+				if (corner.z < minZ) minZ = corner.z;
+				if (corner.z > maxZ) maxZ = corner.z;
+			}
+
 			const desktopBounds = {
-				minX: desktopPosition.x - desktopWidth / 2,
-				maxX: desktopPosition.x + desktopWidth / 2,
-				minY: desktopPosition.y - desktopHeight / 2,
-				maxY: desktopPosition.y + desktopHeight / 2,
-				z: desktopPosition.z, // current Z position of the desktop
+				minX,
+				maxX,
+				minY,
+				maxY,
+				minZ,
+				maxZ,
 			};
 
+			console.log(desktopBounds);
+
 			// Set a threshold for "direct" proximity
-			const threshold = 0.01; // Sensitivity threshold
-			const distanceLimit = 2; // Maximum distance to be considered "near"
+			const threshold = 0.9; // Sensitivity threshold
+			const distanceLimit = 30; // Maximum distance to be considered "near"
 
 			// Calculate the directional vectors of the desktop, taking rotation into account
 			desktopNormal = BABYLON.Vector3.TransformNormal(
@@ -150,8 +211,17 @@ const createScene = async () => {
 				desktopNormal,
 			).normalize(); // Left directional vector of the desktop
 
-			// Calculate the vector from the desktop position to the mesh position
-			const planeToItem = mesh.position.subtract(desktopPosition);
+			// Get the world matrix of the desktop and invert it to transform to local space
+			const inverseDesktopMatrix = desktop.getWorldMatrix().clone().invert();
+
+			// Transform the mesh position into the desktop's local space
+			const meshLocalPosition = BABYLON.Vector3.TransformCoordinates(
+				mesh.position,
+				inverseDesktopMatrix,
+			);
+
+			// Since we're now in local space, subtract the desktop's local position (which is essentially (0, 0, 0) in this frame)
+			const planeToItem = meshLocalPosition; // This is now the vector from the desktop to the mesh in the desktop's local space
 
 			// Calculate the dot products
 			const leftDotProduct = BABYLON.Vector3.Dot(planeToItem, leftDeskopVector);
@@ -165,11 +235,32 @@ const createScene = async () => {
 				upDotProduct > 0 &&
 				upDotProduct <= distanceLimit;
 
+			console.log("isDieectlyOverDesktop", isDirectlyOverDesktop);
+
+			// Check if the mesh is directly below the desktop
+			const isDirectlyUnderDesktop =
+				Math.abs(leftDotProduct) < threshold &&
+				Math.abs(frontDotProduct) < threshold &&
+				upDotProduct < 0 &&
+				Math.abs(upDotProduct) <= distanceLimit;
+
+			console.log("isDirectlyUnderDesktop", isDirectlyUnderDesktop);
+
 			// Check if the mesh is directly on the left or right side of the desktop
 			const isDirectlyOnSide =
 				Math.abs(frontDotProduct) < threshold &&
 				Math.abs(upDotProduct) < threshold &&
 				Math.abs(leftDotProduct) <= distanceLimit;
+
+			console.log("isDirectlyOnSide", isDirectlyOnSide);
+
+			console.log(
+				"meshPosition",
+				mesh.position.x < desktopBounds.maxX &&
+					mesh.position.x > desktopBounds.minX &&
+					mesh.position.y < desktopBounds.maxY &&
+					mesh.position.y > desktopBounds.minY,
+			);
 
 			// Check if the sphere is within the boundaries of the desktop or within the defined limits
 			if (
@@ -178,20 +269,26 @@ const createScene = async () => {
 					mesh.position.y < desktopBounds.maxY &&
 					mesh.position.y > desktopBounds.minY) ||
 				isDirectlyOverDesktop ||
+				isDirectlyUnderDesktop ||
 				isDirectlyOnSide
 			) {
 				// Project the sphere's position onto the desktop's plane
 				const projection = desktopNormal.scale(
 					BABYLON.Vector3.Dot(planeToItem, desktopNormal),
 				);
-				const newPosition = mesh.position.subtract(projection);
+				const newPosition = projectOntoDesktop(
+					mesh,
+					desktopNormal,
+					planeToItem,
+					"back",
+				);
 
 				// Set the new position for the sphere
 				mesh.position = newPosition;
 				sharedSpherePosition.copyFrom(mesh.position);
 
 				// Set the mesh to 2D scaling
-				mesh.scaling = new BABYLON.Vector3(1, 1, 0.001);
+				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 
 				// Apply the desktop's rotation to the mesh
 				mesh.rotation = desktop.rotation.clone();
@@ -296,7 +393,7 @@ const createScene = async () => {
 
 				if (
 					!isSphereGrabbed &&
-					sharedSphere.scaling.z === 0.001 &&
+					sharedSphere.scaling.z === 0.1 &&
 					leftDeskopVector &&
 					upDeskopVector
 				) {
@@ -324,6 +421,47 @@ const createScene = async () => {
 							return; // Ignore other keys
 					}
 
+					const newPosition = sharedSpherePosition.add(moveVector);
+					sharedSpherePosition.copyFrom(newPosition);
+
+					// Send position update to the server
+					room.send("updatePosition", {
+						x: sharedSpherePosition.x,
+						y: sharedSpherePosition.y,
+						z: sharedSpherePosition.z,
+					});
+				} else {
+					// Ensure the vectors are available and the sphere is in 2D mode
+					const moveVector = new BABYLON.Vector3(0, 0, 0);
+
+					switch (event.key) {
+						case "w":
+						case "W":
+							moveVector.y += speed;
+							break;
+						case "s":
+						case "S":
+							moveVector.y -= speed;
+							break;
+						case "a":
+						case "A":
+							moveVector.x -= speed;
+							break;
+						case "d":
+						case "D":
+							moveVector.x += speed;
+							break;
+						case "e":
+						case "E":
+							moveVector.z += speed;
+							break;
+						case "r":
+						case "R":
+							moveVector.z -= speed;
+							break;
+						default:
+							return; // Ignore other keys
+					}
 					const newPosition = sharedSpherePosition.add(moveVector);
 					sharedSpherePosition.copyFrom(newPosition);
 
@@ -450,9 +588,10 @@ const createScene = async () => {
 					sharedSpherePosition.copyFrom(sharedSphere.getAbsolutePosition());
 				}
 
-				checkPortalInteraction();
+				// checkPortalInteraction();
 
 				// Check if the sphere is near the desktop plane
+				/*
 				if (
 					!isSphereGrabbed &&
 					Math.abs(sharedSphere.position.z - desktopPlaneZ) <
@@ -475,7 +614,7 @@ const createScene = async () => {
 						-desktopHeight / 2,
 						Math.min(sharedSpherePosition.y, desktopHeight / 2),
 					);
-				}
+				}*/
 
 				// Toggle between 2D and 3D based on the sphere's position relative to the plane
 				toggle2D3D(sharedSphere);
@@ -525,20 +664,43 @@ const createScene = async () => {
 						}
 					}
 				} else if (leftThumbstickAxes.x !== 0 || leftThumbstickAxes.y !== 0) {
-					// Move the sphere when it's not grabbed
-					const speed = 0.5;
-					const moveVector = new BABYLON.Vector3(0, 0, 0);
-					moveVector.x += leftThumbstickAxes.x * speed;
-					moveVector.y -= leftThumbstickAxes.y * speed;
-					const newPosition = sharedSpherePosition.add(moveVector);
-					sharedSpherePosition.copyFrom(newPosition);
+					if (
+						sharedSphere.scaling.z === 0.1 &&
+						leftDeskopVector &&
+						upDeskopVector
+					) {
+						// The sphere is in 2D mode, move it along the desktop plane vectors
+						const speed = 0.5;
+						let moveVector = BABYLON.Vector3.Zero();
 
-					// Send position update to the server
-					room.send("updatePosition", {
-						x: sharedSpherePosition.x,
-						y: sharedSpherePosition.y,
-						z: sharedSpherePosition.z,
-					});
+						moveVector = moveVector
+							.add(leftDeskopVector.scale(leftThumbstickAxes.x * speed)) // Move left/right
+							.add(upDeskopVector.scale(-leftThumbstickAxes.y * speed)); // Move up/down
+
+						const newPosition = sharedSpherePosition.add(moveVector);
+						sharedSpherePosition.copyFrom(newPosition);
+
+						// Send position update to the server
+						room.send("updatePosition", {
+							x: sharedSpherePosition.x,
+							y: sharedSpherePosition.y,
+							z: sharedSpherePosition.z,
+						});
+					} else {
+						// Handle other movement logic when not in 2D
+						const speed = 0.5;
+						const moveVector = new BABYLON.Vector3(0, 0, 0);
+						moveVector.x += leftThumbstickAxes.x * speed;
+						moveVector.y -= leftThumbstickAxes.y * speed;
+						const newPosition = sharedSpherePosition.add(moveVector);
+						sharedSpherePosition.copyFrom(newPosition);
+						// Send position update to the server
+						room.send("updatePosition", {
+							x: sharedSpherePosition.x,
+							y: sharedSpherePosition.y,
+							z: sharedSpherePosition.z,
+						});
+					}
 				}
 			});
 		})
