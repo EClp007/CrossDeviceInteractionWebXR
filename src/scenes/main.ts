@@ -570,10 +570,12 @@ const createScene = async () => {
 				}
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
+					// TODO: lerping should be teh same in 2d and 3d
+					const lerpFactor = sharedSphere.scaling.z === 0.1 ? 1 : 0.05;
 					sharedSphere.position = BABYLON.Vector3.Lerp(
 						sharedSphere.position,
 						sharedSpherePosition,
-						0.05,
+						lerpFactor,
 					);
 				} else {
 					// Update sharedSpherePosition with the sphere's current position
