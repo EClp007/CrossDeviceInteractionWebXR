@@ -94,7 +94,7 @@ const createScene = async () => {
 	camera.inputs.clear();
 
 	// Make the camera follow the sphere
-	camera.lockedTarget = desktop.position;
+	camera.parent = desktop;
 
 	// Create and add a colored material to the ground
 	const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
@@ -311,6 +311,11 @@ const createScene = async () => {
 			z: number;
 			onChange: (callback: () => void) => void;
 		};
+		desktop: {
+			position: BABYLON.Vector3;
+			rotation: BABYLON.Vector3;
+			onChange: (callback: () => void) => void;
+		};
 	}
 
 	colyseusSDK
@@ -324,6 +329,11 @@ const createScene = async () => {
 				return;
 			}
 
+			if (!room.state.desktop) {
+				console.error("desktop is not initialized in the room state.");
+				return;
+			}
+
 			// Safely attach the onChange listener
 			room.state.sharedSphere.onChange(() => {
 				// Update the position of the shared sphere
@@ -334,6 +344,29 @@ const createScene = async () => {
 				);
 			});
 
+			room.state.desktop.onChange(() => {
+				// Update the Babylon.js desktop mesh position and rotation from Colyseus state
+				desktop.position.copyFrom(room.state.desktop.position);
+				desktop.rotation.copyFrom(room.state.desktop.rotation);
+			});
+
+			// Handle incoming updates from other clients correctly
+			room.onMessage("updateDesktopTransform", (message) => {
+				desktop.position.copyFrom(
+					new BABYLON.Vector3(
+						message.position.x,
+						message.position.y,
+						message.position.z,
+					),
+				);
+				desktop.rotation.copyFrom(
+					new BABYLON.Vector3(
+						message.rotation.x,
+						message.rotation.y,
+						message.rotation.z,
+					),
+				);
+			});
 			room.onMessage("updatePosition", (message) => {
 				// Update the shared sphere position locally
 				sharedSpherePosition.set(message.x, message.y, message.z);
@@ -383,6 +416,19 @@ const createScene = async () => {
 
 					const newPosition = sharedSpherePosition.add(moveVector);
 					sharedSpherePosition.copyFrom(newPosition);
+
+					room.send("updateDesktopTransform", {
+						position: {
+							x: desktop.position.x,
+							y: desktop.position.y,
+							z: desktop.position.z,
+						},
+						rotation: {
+							x: desktop.rotation.x,
+							y: desktop.rotation.y,
+							z: desktop.rotation.z,
+						},
+					});
 
 					// Send position update to the server
 					room.send("updatePosition", {
