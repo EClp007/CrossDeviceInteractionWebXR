@@ -278,8 +278,12 @@ const createScene = async () => {
 			onChange: (callback: () => void) => void;
 		};
 		desktop: {
-			position: BABYLON.Vector3;
-			rotation: BABYLON.Vector3;
+			x: number;
+			y: number;
+			z: number;
+			rotationX: number;
+			rotationY: number;
+			rotationZ: number;
 			onChange: (callback: () => void) => void;
 		};
 	}
@@ -312,26 +316,36 @@ const createScene = async () => {
 
 			room.state.desktop.onChange(() => {
 				// Update the Babylon.js desktop mesh position and rotation from Colyseus state
-				desktop.position.copyFrom(room.state.desktop.position);
-				desktop.rotation.copyFrom(room.state.desktop.rotation);
+				desktop.position.set(
+					room.state.desktop.x,
+					room.state.desktop.y,
+					room.state.desktop.z,
+				);
+				desktop.rotation.set(
+					room.state.desktop.rotationX,
+					room.state.desktop.rotationY,
+					room.state.desktop.rotationZ,
+				);
 			});
 
 			// Handle incoming updates from other clients correctly
 			room.onMessage("updateDesktopTransform", (message) => {
-				desktop.position.copyFrom(
-					new BABYLON.Vector3(
-						message.position.x,
-						message.position.y,
-						message.position.z,
-					),
+				desktop.position.set(
+					message.position.x,
+					message.position.y,
+					message.position.z,
 				);
-				desktop.rotation.copyFrom(
-					new BABYLON.Vector3(
-						message.rotation.x,
-						message.rotation.y,
-						message.rotation.z,
-					),
+				desktop.rotation.set(
+					message.rotation.x,
+					message.rotation.y,
+					message.rotation.z,
 				);
+				room.state.desktop.x = message.position.x;
+				room.state.desktop.y = message.position.y;
+				room.state.desktop.z = message.position.z;
+				room.state.desktop.rotationX = message.rotation.x;
+				room.state.desktop.rotationY = message.rotation.y;
+				room.state.desktop.rotationZ = message.rotation.z;
 			});
 			room.onMessage("updatePosition", (message) => {
 				// Update the shared sphere position locally
@@ -382,20 +396,6 @@ const createScene = async () => {
 
 					const newPosition = sharedSpherePosition.add(moveVector);
 					sharedSpherePosition.copyFrom(newPosition);
-
-					room.send("updateDesktopTransform", {
-						position: {
-							x: desktop.position.x,
-							y: desktop.position.y,
-							z: desktop.position.z,
-						},
-						rotation: {
-							x: desktop.rotation.x,
-							y: desktop.rotation.y,
-							z: desktop.rotation.z,
-						},
-					});
-
 					// Send position update to the server
 					room.send("updatePosition", {
 						x: sharedSpherePosition.x,
