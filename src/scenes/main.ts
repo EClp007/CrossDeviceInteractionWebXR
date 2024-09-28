@@ -2,6 +2,7 @@ import * as BABYLON from "@babylonjs/core";
 import { Client } from "colyseus.js";
 import "@babylonjs/loaders";
 import { Inspector } from "@babylonjs/inspector";
+import { createPortalMesh } from "../components/Portal.ts";
 
 // Get the canvas element
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
@@ -122,33 +123,6 @@ const createScene = async () => {
 	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
 	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
-	// Function to project the mesh onto a specific side of the desktop plane
-	function projectOntoDesktop(
-		mesh: BABYLON.Mesh,
-		desktopNormal: BABYLON.DeepImmutableObject<BABYLON.Vector3>,
-		planeToItem: BABYLON.DeepImmutableObject<BABYLON.Vector3>,
-		desiredSide = "back",
-	) {
-		// Calculate the projection distance
-		let dotProduct = BABYLON.Vector3.Dot(planeToItem, desktopNormal);
-
-		// Check the current side of the mesh relative to the desktop
-		if (desiredSide === "front" && dotProduct > 0) {
-			// If the mesh is on the "back" side, invert the dotProduct to project to the "front"
-			dotProduct = Math.abs(dotProduct);
-		} else if (desiredSide === "back" && dotProduct < 0) {
-			// If the mesh is on the "front" side, invert the dotProduct to project to the "back"
-			dotProduct = -Math.abs(dotProduct);
-		}
-
-		// Calculate the projection vector
-		const projection = desktopNormal.scale(dotProduct);
-
-		// Calculate the new projected position
-		const newPosition = mesh.position.subtract(projection);
-
-		return newPosition;
-	}
 
 	function isInBounds(mesh: BABYLON.Mesh) {
 		if (!desktopBounds) return false;
@@ -259,18 +233,8 @@ const createScene = async () => {
 		}
 	}*/
 
-	const portal = BABYLON.MeshBuilder.CreateBox(
-		"portal",
-		{ width: 2, height: 3 },
-		scene,
-	);
-	portal.position = new BABYLON.Vector3(20, 1, 0);
-	const portalMaterial = new BABYLON.StandardMaterial("portalMaterial", scene);
-	portalMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 1);
-	portal.material = portalMaterial;
-
 	// Function to check if the sphere is near the portal and "pull" it into the portal
-	function checkPortalInteraction() {
+	function checkPortalInteraction(middleOfDesktop: BABYLON.Vector3) {
 		const distanceToPortal = BABYLON.Vector3.Distance(
 			sharedSphere.position,
 			portal.position,
@@ -287,12 +251,14 @@ const createScene = async () => {
 			);
 
 			// once the sphere reaches the portal, teleport it
-			if (distanceToPortal < 0.2) {
-				sharedSphere.position = new BABYLON.Vector3(0, 1, 0);
+			if (distanceToPortal < 0.08) {
+				sharedSphere.position = middleOfDesktop;
 				console.log("Sphere entered the portal!");
 			}
 		}
 	}
+
+	const portal = createPortalMesh(scene);
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
@@ -537,6 +503,9 @@ const createScene = async () => {
 										if (grabbedMesh.name === "desktop") {
 											grabbedMesh.setParent(motionController.rootMesh);
 										}
+										if (grabbedMesh.name === "portal") {
+											grabbedMesh.setParent(motionController.rootMesh);
+										}
 									}
 								}
 							}
@@ -581,6 +550,9 @@ const createScene = async () => {
 										z: desktop.rotation.z,
 									},
 								});
+							} else if (grabbedMesh && grabbedMesh.name === "portal") {
+								grabbedMesh.setParent(null);
+								grabbedMesh = null;
 							}
 						}
 						break;
@@ -764,6 +736,7 @@ const createScene = async () => {
 						});
 					}
 				}
+				checkPortalInteraction(desktop.position);
 			});
 		})
 		.catch((error) => {
