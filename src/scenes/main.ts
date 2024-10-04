@@ -39,7 +39,7 @@ let desktopBounds: {
 } | null = null;
 
 let transformedCorners: BABYLON.Vector3[] = [];
-const radiusSphere = 0.25;
+const radiusSphere = 0.125;
 let desktop: BABYLON.Mesh;
 
 // Create the scene
@@ -76,8 +76,8 @@ const createScene = async () => {
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
 	// Add a desktop plane (2D Surface)
-	const desktopWidth = 2.5; // engine.getRenderWidth();
-	const desktopHeight = 1.5; // engine.getRenderHeight();
+	const desktopWidth = 1.25; // engine.getRenderWidth();
+	const desktopHeight = 0.75; // engine.getRenderHeight();
 	desktop = BABYLON.MeshBuilder.CreatePlane(
 		"desktop",
 		{ width: desktopWidth, height: desktopHeight },
