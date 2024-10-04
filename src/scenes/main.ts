@@ -47,7 +47,7 @@ const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
 
 	// Enable the Inspector
-	Inspector.Show(scene, {});
+	// Inspector.Show(scene, {});
 
 	// Add a light
 	const light = new BABYLON.HemisphericLight(
@@ -76,8 +76,8 @@ const createScene = async () => {
 	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
 
 	// Add a desktop plane (2D Surface)
-	const desktopWidth = 1.25; // engine.getRenderWidth();
-	const desktopHeight = 0.75; // engine.getRenderHeight();
+	const desktopWidth = 1.6; // engine.getRenderWidth();
+	const desktopHeight = 0.9; // engine.getRenderHeight();
 	desktop = BABYLON.MeshBuilder.CreatePlane(
 		"desktop",
 		{ width: desktopWidth, height: desktopHeight },
