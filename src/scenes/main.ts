@@ -97,18 +97,6 @@ const createScene = async () => {
 	// Make the camera follow the sphere
 	camera.parent = desktop;
 
-	// Create and add a colored material to the ground
-	const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
-	groundMaterial.diffuseColor = new BABYLON.Color3(0.4, 0.6, 0.4); // Greenish color
-	// Add a ground
-	const ground = BABYLON.MeshBuilder.CreateGround(
-		"ground",
-		{ width: 10, height: 10 },
-		scene,
-	);
-	ground.material = groundMaterial; // Apply the material to the ground
-	ground.receiveShadows = true;
-	ground.isVisible = false;
 
 	// Create and add a colored material to the sphere
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
@@ -262,8 +250,9 @@ const createScene = async () => {
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
-		disableTeleportation: true,
-		floorMeshes: [ground],
+		uiOptions: {
+			sessionMode: "immersive-ar"
+		}
 	});
 
 	const colyseusSDK = new Client(
