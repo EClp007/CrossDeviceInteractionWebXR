@@ -228,7 +228,7 @@ const createScene = async () => {
 			sharedSphere.position,
 			portal.position,
 		);
-		const portalThreshold = 1.5; // Distance threshold to activate the portal pull
+		const portalThreshold = 0.35; // Distance threshold to activate the portal pull
 
 		// If the sphere is near the portal
 		if (distanceToPortal < portalThreshold) {
@@ -352,7 +352,7 @@ const createScene = async () => {
 
 			// Keyboard input handling
 			window.addEventListener("keydown", (event) => {
-				const speed = 0.5; // Movement speed
+				const speed = 0.03; // Movement speed
 
 				if (
 					!isSphereGrabbed &&

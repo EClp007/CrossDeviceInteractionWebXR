@@ -4,10 +4,10 @@ export function createPortalMesh(scene: BABYLON.Scene): BABYLON.Mesh {
 	// Create the portal mesh
 	const portal = BABYLON.MeshBuilder.CreateBox(
 		"portal",
-		{ width: 3, height: 3, depth: 0.1 },
+		{ width: 0.5, height: 0.5, depth: 0.1 },
 		scene,
 	);
-	portal.position = new BABYLON.Vector3(10, 0, 0);
+	portal.position = new BABYLON.Vector3(1.5, 0, 0);
 
 	// Create and configure the material for the portal
 	const portalMaterial = new BABYLON.StandardMaterial("portalMaterial", scene);
