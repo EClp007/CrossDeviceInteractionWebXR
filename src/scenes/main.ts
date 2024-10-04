@@ -84,6 +84,7 @@ const createScene = async () => {
 		scene,
 	);
 	desktop.material = desktopMaterial;
+	desktop.position = new BABYLON.Vector3(0, 0, 20);
 
 	// Create a FreeCamera
 	const camera = new BABYLON.FreeCamera(
