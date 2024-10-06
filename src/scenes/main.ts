@@ -1,22 +1,15 @@
 import * as BABYLON from "@babylonjs/core";
 import { Client } from "colyseus.js";
 import "@babylonjs/loaders";
-import { Inspector } from "@babylonjs/inspector";
-import { createPortalMesh } from "../components/Portal.ts";
+import {
+	createPortalMesh,
+	initializeEngine,
+	createDesktop,
+	createLight,
+	createDirectionalLight,
+} from "../components/index.ts";
 
-// Get the canvas element
-const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
-
-if (!canvas) {
-	console.error("Canvas element not found");
-	throw new Error("Canvas element not found");
-}
-
-// Initialize the engine
-const engine = new BABYLON.Engine(canvas, true, {
-	preserveDrawingBuffer: true,
-	stencil: true,
-});
+const engine = initializeEngine("renderCanvas");
 
 // Global variables
 let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
@@ -46,45 +39,18 @@ let desktop: BABYLON.Mesh;
 const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
 
-	// Enable the Inspector
-	// Inspector.Show(scene, {});
-
 	// Add a light
-	const light = new BABYLON.HemisphericLight(
-		"light",
-		new BABYLON.Vector3(1, 1, 0),
-		scene,
-	);
-	light.intensity = 0.7;
+	const light = createLight(scene);
 
 	// Add a directional light to create shadows
-	const directionalLight = new BABYLON.DirectionalLight(
-		"dirLight",
-		new BABYLON.Vector3(-1, -2, -1),
-		scene,
-	);
-	directionalLight.position = new BABYLON.Vector3(20, 40, 20);
+	const directionalLight = createDirectionalLight(scene);
 
 	// Enable shadows
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
-	// Create and add a colored material to the desktop
-	const desktopMaterial = new BABYLON.StandardMaterial(
-		"desktopMaterial",
-		scene,
-	);
-	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1); // White color
-
-	// Add a desktop plane (2D Surface)
-	const desktopWidth = 1.6; // engine.getRenderWidth();
-	const desktopHeight = 0.9; // engine.getRenderHeight();
-	desktop = BABYLON.MeshBuilder.CreatePlane(
-		"desktop",
-		{ width: desktopWidth, height: desktopHeight },
-		scene,
-	);
-	desktop.material = desktopMaterial;
-	desktop.position = new BABYLON.Vector3(0, 0, 0);
+	const desktopWidth = 1.6;
+	const desktopHeight = 0.9;
+	desktop = createDesktop(scene, desktopWidth, desktopHeight);
 
 	// Create a FreeCamera
 	const camera = new BABYLON.FreeCamera(
@@ -97,7 +63,6 @@ const createScene = async () => {
 
 	// Make the camera follow the sphere
 	camera.parent = desktop;
-
 
 	// Create and add a colored material to the sphere
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
@@ -188,40 +153,6 @@ const createScene = async () => {
 		}
 	}
 
-	/*
-	function animateMagnet(
-		mesh: BABYLON.Mesh,
-		distanceSphereToDesktop: number,
-		threshold = 3,
-	) {
-		if (!desktopBounds) return;
-
-		console.log(
-			"Math.abs(distanceSphereToDesktop) ",
-			Math.abs(distanceSphereToDesktop),
-		);
-		console.log("!isInBounds(mesh)", !isInBounds(mesh));
-		if (!isInBounds(mesh) && Math.abs(distanceSphereToDesktop) <= 2) {
-			console.log("meshPositionX", mesh.position.x);
-			console.log(
-				"desktopBounds.minX - threshold",
-				desktopBounds.minX - threshold,
-			);
-			if (mesh.position.x < desktopBounds.minX - threshold) {
-				mesh.position.x = desktopBounds.minX;
-				sharedSpherePosition.copyFrom(mesh.position);
-				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
-					new BABYLON.Color3(0, 1, 0);
-			}
-			if (mesh.position.x > desktopBounds.maxX + threshold) {
-				mesh.position.x = desktopBounds.maxX;
-				sharedSpherePosition.copyFrom(mesh.position);
-				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
-					new BABYLON.Color3(0, 1, 0);
-			}
-		}
-	}*/
-
 	// Function to check if the sphere is near the portal and "pull" it into the portal
 	function checkPortalInteraction(middleOfDesktop: BABYLON.Vector3) {
 		const distanceToPortal = BABYLON.Vector3.Distance(
@@ -252,8 +183,8 @@ const createScene = async () => {
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
 		uiOptions: {
-			sessionMode: "immersive-ar"
-		}
+			sessionMode: "immersive-ar",
+		},
 	});
 
 	const colyseusSDK = new Client(
