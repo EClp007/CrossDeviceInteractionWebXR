@@ -11,6 +11,15 @@ import {
 
 const engine = initializeEngine("renderCanvas");
 
+// Constants
+const radiusSphere = 0.125;
+const desktopWidth = 1.6;
+const desktopHeight = 0.9;
+const portalThreshold = 0.35;
+const teleportThreshold = 0.08;
+const rotationSpeed = 0.05; // Adjust as needed
+const movementSpeed = 0.05; // Adjust as needed
+
 // Global variables
 let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
 let isSphereGrabbed = false;
@@ -32,24 +41,111 @@ let desktopBounds: {
 } | null = null;
 
 let transformedCorners: BABYLON.Vector3[] = [];
-const radiusSphere = 0.125;
 let desktop: BABYLON.Mesh;
+
+// Helper functiosn
+function isInBounds(mesh: BABYLON.Mesh) {
+	if (!desktopBounds) return false;
+	return (
+		mesh.position.x <= desktopBounds.maxX + radiusSphere &&
+		mesh.position.x >= desktopBounds.minX - radiusSphere &&
+		mesh.position.y <= desktopBounds.maxY + radiusSphere &&
+		mesh.position.y >= desktopBounds.minY - radiusSphere &&
+		mesh.position.z <= desktopBounds.maxZ + radiusSphere &&
+		mesh.position.z >= desktopBounds.minZ - radiusSphere
+	);
+}
+
+function calculate2DCoordinates(
+	projectedPoint: BABYLON.Vector3,
+	desktopCorners: BABYLON.Vector3[],
+) {
+	const u = desktopCorners[1].subtract(desktopCorners[0]);
+	const v = desktopCorners[3].subtract(desktopCorners[0]);
+	const w = projectedPoint.subtract(desktopCorners[0]);
+
+	const uParam = BABYLON.Vector3.Dot(u, w) / BABYLON.Vector3.Dot(u, u);
+	const vParam = BABYLON.Vector3.Dot(v, w) / BABYLON.Vector3.Dot(v, v);
+
+	return { uParam, vParam };
+}
+
+// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
+function toggle2D3D(
+	mesh: BABYLON.Mesh,
+	projectedPoint: BABYLON.Vector3,
+	distanceSphereToDesktop: number,
+) {
+	const renderAs3D = () => {
+		mesh.scaling = new BABYLON.Vector3(1, 1, 1);
+		mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
+	};
+
+	if (isSphereGrabbed) {
+		renderAs3D();
+	} else {
+		const { uParam, vParam } = calculate2DCoordinates(
+			projectedPoint,
+			transformedCorners,
+		);
+
+		if (
+			uParam >= 0 &&
+			uParam <= 1 &&
+			vParam >= 0 &&
+			vParam <= 1 &&
+			distanceSphereToDesktop > 0
+		) {
+			mesh.position = projectedPoint;
+			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
+			mesh.rotation = desktop.rotation.clone();
+			sharedSpherePosition.copyFrom(mesh.position);
+		}
+
+		if (isInBounds(mesh)) {
+			mesh.position = projectedPoint;
+			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
+			mesh.rotation = desktop.rotation.clone();
+			sharedSpherePosition.copyFrom(mesh.position);
+			(mesh.material as BABYLON.StandardMaterial).diffuseColor =
+				new BABYLON.Color3(0, 1, 0);
+		} else {
+			renderAs3D();
+		}
+	}
+}
+
+function checkPortalInteraction(
+	portal: BABYLON.Mesh,
+	middleOfDesktop: BABYLON.Vector3,
+) {
+	const distanceToPortal = BABYLON.Vector3.Distance(
+		sharedSpherePosition,
+		portal.position,
+	);
+	if (distanceToPortal < portalThreshold) {
+		sharedSpherePosition = BABYLON.Vector3.Lerp(
+			sharedSpherePosition,
+			portal.position,
+			0.1,
+		);
+
+		if (distanceToPortal < teleportThreshold) {
+			sharedSpherePosition.copyFrom(middleOfDesktop);
+			console.log("Sphere entered the portal!");
+		}
+	}
+}
 
 // Create the scene
 const createScene = async () => {
 	const scene = new BABYLON.Scene(engine);
 
-	// Add a light
+	// Setup lights and camera
 	const light = createLight(scene);
-
-	// Add a directional light to create shadows
 	const directionalLight = createDirectionalLight(scene);
-
-	// Enable shadows
 	const shadowGenerator = new BABYLON.ShadowGenerator(1024, directionalLight);
 
-	const desktopWidth = 1.6;
-	const desktopHeight = 0.9;
 	desktop = createDesktop(scene, desktopWidth, desktopHeight);
 
 	// Create a FreeCamera
@@ -60,15 +156,11 @@ const createScene = async () => {
 	);
 	camera.setTarget(BABYLON.Vector3.Zero());
 	camera.inputs.clear();
-
-	// Make the camera follow the sphere
 	camera.parent = desktop;
 
-	// Create and add a colored material to the sphere
+	// Create sphere and its material
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
 	sphereMaterial.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.2); // Reddish color
-
-	// Add a single shared sphere to cast shadows
 	const sharedSphere = BABYLON.MeshBuilder.CreateSphere(
 		"sphere",
 		{ diameter: 2 * radiusSphere },
@@ -77,106 +169,6 @@ const createScene = async () => {
 	sharedSphere.material = sphereMaterial; // Apply the material to the sphere
 	sharedSphere.position = sharedSpherePosition.clone();
 	shadowGenerator.addShadowCaster(sharedSphere);
-
-	function isInBounds(mesh: BABYLON.Mesh) {
-		if (!desktopBounds) return false;
-		if (
-			mesh.position.x <= desktopBounds.maxX + radiusSphere &&
-			mesh.position.x >= desktopBounds.minX - radiusSphere &&
-			mesh.position.y <= desktopBounds.maxY + radiusSphere &&
-			mesh.position.y >= desktopBounds.minY - radiusSphere &&
-			mesh.position.z <= desktopBounds.maxZ + radiusSphere &&
-			mesh.position.z >= desktopBounds.minZ - radiusSphere
-		) {
-			return true;
-		}
-		return false;
-	}
-
-	// Function to toggle between 2D and 3D based on the sphere's position relative to the plane
-	// Updated toggle2D3D function with rotation that matches the desktop
-	function toggle2D3D(
-		mesh: BABYLON.Mesh,
-		projectedPoint: BABYLON.Vector3,
-		distanceSphereToDesktop: number,
-	) {
-		const renderAs3D = () => {
-			mesh.scaling = new BABYLON.Vector3(1, 1, 1);
-			mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
-		};
-
-		if (isSphereGrabbed) {
-			// Always render as 3D when the sphere is grabbed
-			renderAs3D();
-		} else {
-			// Calculate the current position of the desktop
-
-			// Compute two vectors that span the desktop plane
-			const u = transformedCorners[1].subtract(transformedCorners[0]);
-			const v = transformedCorners[3].subtract(transformedCorners[0]);
-
-			// Compute the vector from the corner to the projected point
-			const w = projectedPoint.subtract(transformedCorners[0]);
-
-			// Calculate the 2D coordinates of the projected point in the desktop plane
-			const uParam = BABYLON.Vector3.Dot(u, w) / BABYLON.Vector3.Dot(u, u);
-			const vParam = BABYLON.Vector3.Dot(v, w) / BABYLON.Vector3.Dot(v, v);
-
-			// Check if the point is within the desktop plane bounds (0 <= uParam <= 1 and 0 <= vParam <= 1)
-			if (
-				uParam >= 0 &&
-				uParam <= 1 &&
-				vParam >= 0 &&
-				vParam <= 1 &&
-				distanceSphereToDesktop > 0
-			) {
-				console.log("The sphere is directly behind the plane.");
-				mesh.position = projectedPoint;
-				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
-				mesh.rotation = desktop.rotation.clone();
-				sharedSpherePosition.copyFrom(mesh.position);
-			} else if (distanceSphereToDesktop > 0) {
-				console.log("The sphere is behind the plane but not directly behind.");
-			}
-
-			// If the sphere is on the desktop plane
-			if (isInBounds(mesh)) {
-				mesh.position = projectedPoint;
-				mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
-				mesh.rotation = desktop.rotation.clone();
-				sharedSpherePosition.copyFrom(mesh.position);
-				(mesh.material as BABYLON.StandardMaterial).diffuseColor =
-					new BABYLON.Color3(0, 1, 0);
-			} else {
-				renderAs3D();
-			}
-		}
-	}
-
-	// Function to check if the sphere is near the portal and "pull" it into the portal
-	function checkPortalInteraction(middleOfDesktop: BABYLON.Vector3) {
-		const distanceToPortal = BABYLON.Vector3.Distance(
-			sharedSphere.position,
-			portal.position,
-		);
-		const portalThreshold = 0.35; // Distance threshold to activate the portal pull
-
-		// If the sphere is near the portal
-		if (distanceToPortal < portalThreshold) {
-			// Move the sphere smoothly toward the portal center
-			sharedSpherePosition = BABYLON.Vector3.Lerp(
-				sharedSphere.position,
-				portal.position,
-				0.1, // Smooth factor to control the speed of the pull
-			);
-
-			// once the sphere reaches the portal, teleport it
-			if (distanceToPortal < 0.08) {
-				sharedSphere.position = middleOfDesktop;
-				console.log("Sphere entered the portal!");
-			}
-		}
-	}
 
 	const portal = createPortalMesh(scene);
 
@@ -367,9 +359,6 @@ const createScene = async () => {
 				}
 			});
 
-			const rotationSpeed = 0.05; // Adjust as needed
-			const movementSpeed = 0.05; // Adjust as needed
-
 			xrHelper.input.onControllerAddedObservable.add((controller) => {
 				controller.onMotionControllerInitObservable.add((motionController) => {
 					if (motionController.handness === "left") {
@@ -387,7 +376,7 @@ const createScene = async () => {
 				});
 			});
 
-			// Player interaction: Click on the ground to change the position
+			// Click on the ground to change the position
 			scene.onPointerDown = (event, pointer) => {
 				if (event.button === 0 && pointer.pickedPoint) {
 					const targetPosition = pointer.pickedPoint.clone();
@@ -417,15 +406,9 @@ const createScene = async () => {
 									const motionController = xrInput?.motionController;
 									if (motionController) {
 										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
+										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
-											grabbedMesh.setParent(motionController.rootMesh);
-										}
-										if (grabbedMesh.name === "desktop") {
-											grabbedMesh.setParent(motionController.rootMesh);
-										}
-										if (grabbedMesh.name === "portal") {
-											grabbedMesh.setParent(motionController.rootMesh);
 										}
 									}
 								}
@@ -659,7 +642,7 @@ const createScene = async () => {
 						});
 					}
 				}
-				checkPortalInteraction(desktop.position);
+				checkPortalInteraction(portal, desktop.position);
 			});
 		})
 		.catch((error) => {
