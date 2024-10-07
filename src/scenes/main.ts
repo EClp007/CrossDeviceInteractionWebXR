@@ -7,7 +7,7 @@ import {
 	createLight,
 	createDirectionalLight,
 } from "../components/index";
-import { createPortalMesh } from "../components/portal";
+import { createPortalMesh } from "../components/portal.ts";
 
 const engine = initializeEngine("renderCanvas");
 
