@@ -2,12 +2,12 @@ import * as BABYLON from "@babylonjs/core";
 import { Client } from "colyseus.js";
 import "@babylonjs/loaders";
 import {
-	createPortalMesh,
 	initializeEngine,
 	createDesktop,
 	createLight,
 	createDirectionalLight,
 } from "../components/index";
+import { createPortalMesh } from "../components/portal";
 
 const engine = initializeEngine("renderCanvas");
 
