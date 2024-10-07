@@ -1,4 +1,4 @@
-export  { createPortalMesh } from "./portal.ts";
-export  { initializeEngine } from "./engine.ts";
-export  { createDesktop } from "./desktop.ts";
-export  { createLight, createDirectionalLight } from "./ligtht.ts";
+export { createPortalMesh } from "./portal";
+export { initializeEngine } from "./engine";
+export { createDesktop } from "./desktop";
+export { createLight, createDirectionalLight } from "./ligtht";

@@ -7,7 +7,7 @@ import {
 	createDesktop,
 	createLight,
 	createDirectionalLight,
-} from "../components/index.ts";
+} from "../components/index";
 
 const engine = initializeEngine("renderCanvas");
 
