@@ -43,7 +43,7 @@ let desktopBounds: {
 let transformedCorners: BABYLON.Vector3[] = [];
 let desktop: BABYLON.Mesh;
 
-// Helper functiosn
+// Helper functions
 function isInBounds(mesh: BABYLON.Mesh) {
 	if (!desktopBounds) return false;
 	return (
@@ -81,9 +81,7 @@ function toggle2D3D(
 		mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
 	};
 
-	if (isSphereGrabbed) {
-		renderAs3D();
-	} else {
+	const renderAs2D = () => {
 		const { uParam, vParam } = calculate2DCoordinates(
 			projectedPoint,
 			transformedCorners,
@@ -112,6 +110,12 @@ function toggle2D3D(
 		} else {
 			renderAs3D();
 		}
+	};
+
+	if (isSphereGrabbed) {
+		renderAs3D();
+	} else {
+		renderAs2D();
 	}
 }
 
@@ -135,6 +139,41 @@ function checkPortalInteraction(
 			console.log("Sphere entered the portal!");
 		}
 	}
+}
+
+function calculateDesktopVectorsAndProjection(sharedSphere: BABYLON.Mesh) {
+	// Calculate directional vectors of the desktop
+	desktopNormal = BABYLON.Vector3.TransformNormal(
+		BABYLON.Axis.Z,
+		desktop.getWorldMatrix(),
+	).normalize(); // Normal vector of the desktop (forward)
+
+	upDeskopVector = BABYLON.Vector3.TransformNormal(
+		BABYLON.Axis.Y,
+		desktop.getWorldMatrix(),
+	).normalize(); // Upward direction of the desktop
+
+	leftDeskopVector = BABYLON.Vector3.Cross(
+		upDeskopVector,
+		desktopNormal,
+	).normalize(); // Left directional vector of the desktop
+
+	// Calculate the distance from the sphere center to the desktop plane
+	const sphereCenter = sharedSphere.position;
+	const normal = desktopNormal;
+	const d = -BABYLON.Vector3.Dot(normal, desktop.position);
+
+	const distanceSphereToDesktop = BABYLON.Vector3.Dot(normal, sphereCenter) + d;
+
+	// Project the sphere's center point onto the desktop plane
+	const projectedPoint = sphereCenter.subtract(
+		normal.scale(distanceSphereToDesktop),
+	);
+
+	return {
+		projectedPoint,
+		distanceSphereToDesktop,
+	};
 }
 
 // Create the scene
@@ -261,7 +300,6 @@ const createScene = async () => {
 				room.state.desktop.rotationZ = message.rotation.z;
 			});
 			room.onMessage("updatePosition", (message) => {
-				// Update the shared sphere position locally
 				sharedSpherePosition.set(message.x, message.y, message.z);
 				room.state.sharedSphere.x = message.x;
 				room.state.sharedSphere.y = message.y;
@@ -274,79 +312,42 @@ const createScene = async () => {
 			});
 
 			// Keyboard input handling
+			// Move the sphere with the keyboard, depending if it's in 2D or 3D mode
 			window.addEventListener("keydown", (event) => {
 				const speed = 0.03; // Movement speed
+				const isSphereIn2DMode = sharedSphere.scaling.z === 0.1;
 
-				if (
-					!isSphereGrabbed &&
-					sharedSphere.scaling.z === 0.1 &&
-					leftDeskopVector &&
-					upDeskopVector
-				) {
-					// Ensure the vectors are available and the sphere is in 2D mode
+				if (!isSphereGrabbed && leftDeskopVector && upDeskopVector) {
 					let moveVector = BABYLON.Vector3.Zero();
 
-					switch (event.key) {
+					// Function to calculate move vector based on 2D or 3D mode
+					const calculateMoveVector = (
+						axisVector: BABYLON.Vector3,
+						scalar: number,
+					) => {
+						if (isSphereIn2DMode) {
+							moveVector = moveVector.add(axisVector.scale(scalar));
+						}
+						return moveVector.add(axisVector.scale(scalar));
+					};
+
+					switch (event.key.toLowerCase()) {
 						case "w":
-						case "W":
-							moveVector = moveVector.add(upDeskopVector.scale(speed));
+							moveVector = calculateMoveVector(upDeskopVector, speed);
 							break;
 						case "s":
-						case "S":
-							moveVector = moveVector.add(upDeskopVector.scale(-speed));
+							moveVector = calculateMoveVector(upDeskopVector, -speed);
 							break;
 						case "a":
-						case "A":
-							moveVector = moveVector.add(leftDeskopVector.scale(-speed));
+							moveVector = calculateMoveVector(leftDeskopVector, -speed);
 							break;
 						case "d":
-						case "D":
-							moveVector = moveVector.add(leftDeskopVector.scale(speed));
+							moveVector = calculateMoveVector(leftDeskopVector, speed);
 							break;
 						default:
 							return; // Ignore other keys
 					}
 
-					const newPosition = sharedSpherePosition.add(moveVector);
-					sharedSpherePosition.copyFrom(newPosition);
-					// Send position update to the server
-					room.send("updatePosition", {
-						x: sharedSpherePosition.x,
-						y: sharedSpherePosition.y,
-						z: sharedSpherePosition.z,
-					});
-				} else {
-					// Ensure the vectors are available and the sphere is in 2D mode
-					const moveVector = new BABYLON.Vector3(0, 0, 0);
-
-					switch (event.key) {
-						case "w":
-						case "W":
-							moveVector.y += speed;
-							break;
-						case "s":
-						case "S":
-							moveVector.y -= speed;
-							break;
-						case "a":
-						case "A":
-							moveVector.x -= speed;
-							break;
-						case "d":
-						case "D":
-							moveVector.x += speed;
-							break;
-						case "e":
-						case "E":
-							moveVector.z += speed;
-							break;
-						case "r":
-						case "R":
-							moveVector.z -= speed;
-							break;
-						default:
-							return; // Ignore other keys
-					}
 					const newPosition = sharedSpherePosition.add(moveVector);
 					sharedSpherePosition.copyFrom(newPosition);
 
@@ -376,24 +377,23 @@ const createScene = async () => {
 				});
 			});
 
-			// Click on the ground to change the position
+			// Click on the desktop to change the position of the shared sphere
 			scene.onPointerDown = (event, pointer) => {
 				if (event.button === 0 && pointer.pickedPoint) {
 					const targetPosition = pointer.pickedPoint.clone();
+					sharedSpherePosition.copyFrom(targetPosition);
 
-					// Send position update to the server
 					room.send("updatePosition", {
 						x: targetPosition.x,
 						y: targetPosition.y,
 						z: targetPosition.z,
 					});
-				} else {
-					console.warn("Pointer did not hit any mesh or ground.");
 				}
 			};
 
 			scene.onPointerObservable.add((pointerInfo) => {
 				switch (pointerInfo.type) {
+					// Grab the object when the pointer is down
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
@@ -416,6 +416,7 @@ const createScene = async () => {
 						}
 						break;
 
+					// Release the object when the pointer is up
 					case BABYLON.PointerEventTypes.POINTERUP:
 						if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
 							if (grabbedMesh && grabbedMesh.name === "sphere") {
@@ -523,38 +524,8 @@ const createScene = async () => {
 					},
 				);
 
-				// Calculate the directional vectors of the desktop, taking rotation into account
-				desktopNormal = BABYLON.Vector3.TransformNormal(
-					BABYLON.Axis.Z,
-					desktop.getWorldMatrix(),
-				).normalize(); // Normal vector of the desktop (forward)
-
-				upDeskopVector = BABYLON.Vector3.TransformNormal(
-					BABYLON.Axis.Y,
-					desktop.getWorldMatrix(),
-				).normalize(); // Upward direction of the desktop
-
-				leftDeskopVector = BABYLON.Vector3.Cross(
-					upDeskopVector,
-					desktopNormal,
-				).normalize(); // Left directional vector of the desktop
-
-				const normal = desktopNormal; // Normal of the desktop
-
-				// Step 2: Get the center of the sphere
-				const sphereCenter = sharedSphere.position;
-
-				// Step 3: Calculate plane D (ax + by + cz = d)
-				const d = -BABYLON.Vector3.Dot(normal, desktop.position);
-
-				// Step 4: Calculate the distance from the sphere center to the plane
-				const distanceSphereToDesktop =
-					BABYLON.Vector3.Dot(normal, sphereCenter) + d;
-
-				// Project the point onto the desktop plane
-				const projectedPoint = sphereCenter.subtract(
-					normal.scale(distanceSphereToDesktop),
-				);
+				const { projectedPoint, distanceSphereToDesktop } =
+					calculateDesktopVectorsAndProjection(sharedSphere);
 
 				toggle2D3D(sharedSphere, projectedPoint, distanceSphereToDesktop);
 				// animateMagnet(sharedSphere, distanceSphereToDesktop);
@@ -604,43 +575,33 @@ const createScene = async () => {
 						}
 					}
 				} else if (leftThumbstickAxes.x !== 0 || leftThumbstickAxes.y !== 0) {
+					const speed = 0.5;
+					let moveVector = BABYLON.Vector3.Zero();
+
 					if (
 						sharedSphere.scaling.z === 0.1 &&
 						leftDeskopVector &&
 						upDeskopVector
 					) {
 						// The sphere is in 2D mode, move it along the desktop plane vectors
-						const speed = 0.5;
-						let moveVector = BABYLON.Vector3.Zero();
-
 						moveVector = moveVector
 							.add(leftDeskopVector.scale(leftThumbstickAxes.x * speed)) // Move left/right
 							.add(upDeskopVector.scale(-leftThumbstickAxes.y * speed)); // Move up/down
-
-						const newPosition = sharedSpherePosition.add(moveVector);
-						sharedSpherePosition.copyFrom(newPosition);
-
-						// Send position update to the server
-						room.send("updatePosition", {
-							x: sharedSpherePosition.x,
-							y: sharedSpherePosition.y,
-							z: sharedSpherePosition.z,
-						});
 					} else {
 						// Handle other movement logic when not in 2D
-						const speed = 0.5;
-						const moveVector = new BABYLON.Vector3(0, 0, 0);
-						moveVector.x += leftThumbstickAxes.x * speed;
-						moveVector.y -= leftThumbstickAxes.y * speed;
-						const newPosition = sharedSpherePosition.add(moveVector);
-						sharedSpherePosition.copyFrom(newPosition);
-						// Send position update to the server
-						room.send("updatePosition", {
-							x: sharedSpherePosition.x,
-							y: sharedSpherePosition.y,
-							z: sharedSpherePosition.z,
-						});
+						moveVector.x = leftThumbstickAxes.x * speed;
+						moveVector.y = -leftThumbstickAxes.y * speed;
 					}
+
+					const newPosition = sharedSpherePosition.add(moveVector);
+					sharedSpherePosition.copyFrom(newPosition);
+
+					// Send position update to the server
+					room.send("updatePosition", {
+						x: sharedSpherePosition.x,
+						y: sharedSpherePosition.y,
+						z: sharedSpherePosition.z,
+					});
 				}
 				checkPortalInteraction(portal, desktop.position);
 			});
