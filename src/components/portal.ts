@@ -1,6 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 
-export function createPortalMesh(scene: BABYLON.Scene): BABYLON.Mesh {
+export const createPortalMesh = (scene: BABYLON.Scene) => {
 	// Create the portal mesh
 	const portal = BABYLON.MeshBuilder.CreateBox(
 		"portal",
@@ -36,4 +36,4 @@ export function createPortalMesh(scene: BABYLON.Scene): BABYLON.Mesh {
 	portalMaterial.diffuseTexture = texture;
 
 	return portal;
-}
+};
