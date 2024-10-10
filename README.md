@@ -33,12 +33,6 @@ To run this project locally, follow these steps:
 4. **Open in browser**:
     - Open the application in a WebXR compatible browser, e.g., Chrome.
 
-## Acknowledgements
-
-- [Babylon.js Documentation](https://doc.babylonjs.com/)
-- [WebXR Documentation](https://immersive-web.github.io/webxr/)
-- [Colyseus Documentation](https://docs.colyseus.io/)
-
 ## Interactions
 
 ### 1. Edge-based Interaction
@@ -49,6 +43,12 @@ https://github.com/user-attachments/assets/519d74e3-ee3a-44dc-95cb-e658eac313a6
 
 ### 3. Drag-and-Drop Interaction
 https://github.com/user-attachments/assets/99e79023-2769-4b59-a7c6-26b3023ffed5
+
+## Acknowledgements
+
+- [Babylon.js Documentation](https://doc.babylonjs.com/)
+- [WebXR Documentation](https://immersive-web.github.io/webxr/)
+- [Colyseus Documentation](https://docs.colyseus.io/)
 
 
 
