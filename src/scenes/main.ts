@@ -218,6 +218,16 @@ const createScene = async () => {
 		},
 	});
 
+	if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
+	const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
+	desktopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red color
+	desktop.material = desktopMaterial
+	} else if (xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR) {
+		const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
+		desktopMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0); // Green color
+		desktop.material = desktopMaterial
+	}
+
 	const colyseusSDK = new Client(
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
 	);
