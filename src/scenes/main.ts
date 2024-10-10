@@ -406,8 +406,9 @@ const createScene = async () => {
 
 			// Click on the desktop to change the position of the shared sphere
 			scene.onPointerDown = (event, pointer) => {
-				if (event.button === 0 && pointer.pickedPoint) {
+				if (event.button === 0 && pointer.pickedPoint && pointer.pickedMesh === desktop) {
 					const targetPosition = pointer.pickedPoint.clone();
+					sharedSphere.position.copyFrom(targetPosition);
 					sharedSpherePosition.copyFrom(targetPosition);
 
 					room.send("updatePosition", {
