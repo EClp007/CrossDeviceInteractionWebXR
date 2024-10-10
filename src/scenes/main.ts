@@ -510,6 +510,7 @@ const createScene = async () => {
 			
 				if (isSphereGrabbed) {
 					// Update the sphere's material color when grabbed
+					sphereMaterial.alpha = 1;
 					sphereMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 1); // Blue color
 				} else {
 					// Update the sphere's material color when released
