@@ -674,9 +674,9 @@ const createScene = async () => {
 				}
 				checkPortalInteraction(portal, desktop.position);
 				room.send("updatePosition", {
-					x: sharedSphere.position.x,
-					y: sharedSphere.position.y,
-					z: sharedSphere.position.z,
+					x: sharedSpherePosition.x,
+					y: sharedSpherePosition.y,
+					z: sharedSpherePosition.z,
 				});
 			});
 		})
