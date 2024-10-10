@@ -32,7 +32,6 @@ let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
 
-let desktopMaterial: BABYLON.StandardMaterial | null = null;
 
 let desktopBounds: {
 	minX: number;
@@ -213,6 +212,8 @@ const createScene = async () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const portal = createPortalMesh(scene);
+
+	const desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 
 
 	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.2 }, scene);
@@ -427,9 +428,11 @@ const createScene = async () => {
 								}
 								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
 									// Change the desktop color when the button is clicked
-									desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
-									desktopMaterial.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
-									desktop.material = desktopMaterial;  // Apply the material to the desktop mesh
+									if(desktopMaterial.alpha === 0.5) { 
+										desktopMaterial.alpha = 1;
+									} else {
+										desktopMaterial.alpha = 0
+									}
 								}
 							}
 						}
