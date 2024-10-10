@@ -461,6 +461,11 @@ const createScene = async () => {
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
+											room.send("updatePosition", {
+												x: grabbedMesh.position.x,
+												y: grabbedMesh.position.y,
+												z: grabbedMesh.position.z,
+											});
 										}
 									}
 								}
@@ -673,6 +678,11 @@ const createScene = async () => {
 					});
 				}
 				checkPortalInteraction(portal, desktop.position);
+				room.send("updatePosition", {
+					x: sharedSpherePosition.x,
+					y: sharedSpherePosition.y,
+					z: sharedSpherePosition.z,
+				});
 			});
 		})
 		.catch((error) => {
