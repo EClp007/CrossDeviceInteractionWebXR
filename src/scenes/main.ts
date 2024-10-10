@@ -8,6 +8,7 @@ import {
 	createDirectionalLight,
 	createPortalMesh,
 } from "../components/index";
+import * as GUI from "@babylonjs/gui";
 
 const engine = initializeEngine("renderCanvas");
 
@@ -210,6 +211,27 @@ const createScene = async () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const portal = createPortalMesh(scene);
+
+	const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+    const button = GUI.Button.CreateSimpleButton("colorButton", "Change Desktop Color");
+    button.width = "200px";
+    button.height = "50px";
+    button.color = "white";
+    button.background = "red";
+    button.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    button.isVisible = false;  // Button is hidden initially
+
+    // Add button to UI
+    advancedTexture.addControl(button);
+
+    // Event to trigger color change when button is clicked
+    button.onPointerUpObservable.add(() => {
+        const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
+        // Change color to a random color each time button is clicked
+        desktopMaterial.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
+        desktop.material = desktopMaterial;
+    });
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
@@ -487,7 +509,7 @@ const createScene = async () => {
 				}
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
-					// TODO: lerping should be teh same in 2d and 3d
+					// TODO: lerping should be the same in 2d and 3d
 					const lerpFactor = sharedSphere.scaling.z === 0.1 ? 1 : 0.05;
 					sharedSphere.position = BABYLON.Vector3.Lerp(
 						sharedSphere.position,
