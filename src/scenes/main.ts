@@ -220,7 +220,6 @@ const createScene = async () => {
 
     // Position the button in front of the user
     buttonMesh.position = new BABYLON.Vector3(0, 1.5, 0.5); // Adjust position as needed
-    buttonMesh.isVisible = false; // Initially hidden
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
