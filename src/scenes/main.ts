@@ -212,25 +212,15 @@ const createScene = async () => {
 
 	const portal = createPortalMesh(scene);
 
-	const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 
-    const button = GUI.Button.CreateSimpleButton("colorButton", "Change Desktop Color");
-    button.width = "200px";
-    button.height = "50px";
-    button.color = "white";
-    button.background = "red";
-    button.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.2 }, scene);
+    const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
+    buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
+    buttonMesh.material = buttonMaterial;
 
-    // Add button to UI
-    advancedTexture.addControl(button);
-
-    // Event to trigger color change when button is clicked
-    button.onPointerUpObservable.add(() => {
-        const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
-        // Change color to a random color each time button is clicked
-        desktopMaterial.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
-        desktop.material = desktopMaterial;
-    });
+    // Position the button in front of the user
+    buttonMesh.position = new BABYLON.Vector3(0, 1.5, 0.5); // Adjust position as needed
+    buttonMesh.isVisible = false; // Initially hidden
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
@@ -433,6 +423,12 @@ const createScene = async () => {
 											isSphereGrabbed = true;
 										}
 									}
+								}
+								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
+									// Change the desktop color when the button is clicked
+									const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
+									desktopMaterial.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
+									desktop.material = desktopMaterial;
 								}
 							}
 						}
