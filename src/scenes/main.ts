@@ -8,7 +8,6 @@ import {
 	createDirectionalLight,
 	createPortalMesh,
 } from "../components/index";
-import * as GUI from "@babylonjs/gui";
 
 const engine = initializeEngine("renderCanvas");
 
@@ -32,6 +31,8 @@ let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
 let desktopMaterial: BABYLON.StandardMaterial;
+let cornerMarkers: BABYLON.Mesh[] = [];
+
 
 
 let desktopBounds: {
@@ -58,6 +59,27 @@ function isInBounds(mesh: BABYLON.Mesh) {
 		mesh.position.z >= desktopBounds.minZ - radiusSphere
 	);
 }
+
+function createCornerMarkers(scene: BABYLON.Scene) {
+    // Create a marker for each corner (spheres in this case)
+    for (let i = 0; i < 4; i++) {
+        const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.05 }, scene);
+        const markerMaterial = new BABYLON.StandardMaterial(`markerMaterial${i}`, scene);
+        markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red color for visibility
+        marker.material = markerMaterial;
+        cornerMarkers.push(marker); // Store the marker for later updates
+    }
+}
+
+// Update corner marker positions based on the transformed corners of the desktop
+function updateCornerMarkers() {
+    if (transformedCorners.length === 4) {
+        for (let i = 0; i < 4; i++) {
+            cornerMarkers[i].position.copyFrom(transformedCorners[i]); // Move markers to corner positions
+        }
+    }
+}
+
 
 function calculate2DCoordinates(
 	projectedPoint: BABYLON.Vector3,
@@ -225,6 +247,8 @@ const createScene = async () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const portal = createPortalMesh(scene);
+	
+	createCornerMarkers(scene);
 
 	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 
@@ -503,6 +527,7 @@ const createScene = async () => {
 
 			scene.registerBeforeRender(() => {
 				console.log("XR state:", xrHelper.baseExperience.state);
+				updateCornerMarkers();
 				if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
 					desktop.material = desktopMaterial
 					} else if (xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR) {
