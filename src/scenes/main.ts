@@ -220,7 +220,6 @@ const createScene = async () => {
     button.color = "white";
     button.background = "red";
     button.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    button.isVisible = false;  // Button is hidden initially
 
     // Add button to UI
     advancedTexture.addControl(button);
