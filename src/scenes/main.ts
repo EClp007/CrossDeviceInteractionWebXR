@@ -253,13 +253,13 @@ const createScene = async () => {
 	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 
 
-	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.02 }, scene);
+	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.1 }, scene);
     const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
     buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
     buttonMesh.material = buttonMaterial;
 
     // Position the button in front of the user
-    buttonMesh.position = new BABYLON.Vector3(0, 1.5, 10); // Adjust position as needed
+    buttonMesh.position = new BABYLON.Vector3(0, 1.5, 5); // Adjust position as needed
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
