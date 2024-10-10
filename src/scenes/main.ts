@@ -31,6 +31,7 @@ let leftMotionController: BABYLON.WebXRAbstractMotionController | null = null;
 let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
+let desktopMaterial: BABYLON.StandardMaterial;
 
 
 let desktopBounds: {
@@ -107,6 +108,15 @@ function toggle2D3D(
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 			mesh.rotation = desktop.rotation.clone();
 			sharedSpherePosition.copyFrom(mesh.position);
+			if(desktopMaterial.alpha === 0){
+				if (mesh.material) {
+					mesh.material.alpha = 0;
+				}
+			} else {
+				if (mesh.material) {
+					mesh.material.alpha = 1;
+				}
+			}
 			(mesh.material as BABYLON.StandardMaterial).diffuseColor =
 				new BABYLON.Color3(0, 1, 0);
 		} else {
@@ -213,7 +223,7 @@ const createScene = async () => {
 
 	const portal = createPortalMesh(scene);
 
-	const desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
+	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 
 
 	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.2 }, scene);
