@@ -32,6 +32,8 @@ let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
 
+let desktopMaterial: BABYLON.StandardMaterial | null = null;
+
 let desktopBounds: {
 	minX: number;
 	maxX: number;
@@ -415,7 +417,7 @@ const createScene = async () => {
 											pointerEvent.pointerId,
 										);
 									const motionController = xrInput?.motionController;
-									if (motionController) {
+									if (motionController && pointerInfo.pickInfo.pickedMesh !== buttonMesh) {
 										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
@@ -425,9 +427,9 @@ const createScene = async () => {
 								}
 								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
 									// Change the desktop color when the button is clicked
-									const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
+									desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 									desktopMaterial.diffuseColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
-									desktop.material = desktopMaterial;
+									desktop.material = desktopMaterial;  // Apply the material to the desktop mesh
 								}
 							}
 						}
@@ -485,13 +487,9 @@ const createScene = async () => {
 			scene.registerBeforeRender(() => {
 				console.log("XR state:", xrHelper.baseExperience.state);
 				if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-					const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
-					desktopMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red color
 					desktop.material = desktopMaterial
 					} else if (xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR) {
-						const desktopMaterial = desktop.material as BABYLON.StandardMaterial;
-						desktopMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0); // Green color
-						desktop.material = desktopMaterial
+
 					}
 			
 				if (isSphereGrabbed) {
