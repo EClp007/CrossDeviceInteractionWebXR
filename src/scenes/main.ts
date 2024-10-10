@@ -80,6 +80,9 @@ function toggle2D3D(
 	distanceSphereToDesktop: number,
 ) {
 	const renderAs3D = () => {
+		if (mesh.material) {
+			mesh.material.alpha = 1;
+		}
 		mesh.scaling = new BABYLON.Vector3(1, 1, 1);
 		mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
 	};
