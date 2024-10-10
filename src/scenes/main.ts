@@ -428,7 +428,7 @@ const createScene = async () => {
 								}
 								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
 									// Change the desktop color when the button is clicked
-									if(desktopMaterial.alpha === 0.5) { 
+									if(desktopMaterial.alpha === 0) { 
 										desktopMaterial.alpha = 1;
 									} else {
 										desktopMaterial.alpha = 0
