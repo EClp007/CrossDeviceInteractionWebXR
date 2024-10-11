@@ -17,11 +17,11 @@ const desktopWidth = 1.6;
 const desktopHeight = 0.9;
 const portalThreshold = 0.35;
 const teleportThreshold = 0.08;
-const rotationSpeed = 0.05; // Adjust as needed
-const movementSpeed = 0.05; // Adjust as needed
+const rotationSpeed = 0.05;
+const movementSpeed = 0.05;
 
 // Global variables
-let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0); // Store the shared sphere's position
+let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0);
 let isSphereGrabbed = false;
 let grabbedMesh: BABYLON.AbstractMesh | null = null;
 const leftThumbstickAxes = { x: 0, y: 0 };
@@ -199,7 +199,7 @@ const createScene = async () => {
 
 	// Create sphere and its material
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
-	sphereMaterial.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.2); // Reddish color
+	sphereMaterial.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.2);
 	const sharedSphere = BABYLON.MeshBuilder.CreateSphere(
 		"sphere",
 		{ diameter: 2 * radiusSphere },
@@ -267,7 +267,7 @@ const createScene = async () => {
 			});
 
 			room.state.desktop.onChange(() => {
-				// Update the Babylon.js desktop mesh position and rotation from Colyseus state
+				// Update the desktop mesh position and rotation from Colyseus state
 				desktop.position.set(
 					room.state.desktop.x,
 					room.state.desktop.y,
@@ -345,7 +345,7 @@ const createScene = async () => {
 							moveVector = calculateMoveVector(leftDeskopVector, speed);
 							break;
 						default:
-							return; // Ignore other keys
+							return;
 					}
 
 					const newPosition = sharedSpherePosition.add(moveVector);
@@ -528,7 +528,6 @@ const createScene = async () => {
 					calculateDesktopVectorsAndProjection(sharedSphere);
 
 				toggle2D3D(sharedSphere, projectedPoint, distanceSphereToDesktop);
-				// animateMagnet(sharedSphere, distanceSphereToDesktop);
 
 				// Continuous movement for the grabbed sphere
 				if (isSphereGrabbed && grabbedMesh && grabbedMesh.name === "sphere") {
