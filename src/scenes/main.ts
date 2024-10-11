@@ -30,6 +30,10 @@ let leftMotionController: BABYLON.WebXRAbstractMotionController | null = null;
 let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
+let desktopMaterial: BABYLON.StandardMaterial;
+let cornerMarkers: BABYLON.Mesh[] = [];
+
+
 
 let desktopBounds: {
 	minX: number;
@@ -56,6 +60,27 @@ function isInBounds(mesh: BABYLON.Mesh) {
 	);
 }
 
+function createCornerMarkers(scene: BABYLON.Scene) {
+    // Create a marker for each corner (spheres in this case)
+    for (let i = 0; i < 4; i++) {
+        const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.05 }, scene);
+        const markerMaterial = new BABYLON.StandardMaterial(`markerMaterial${i}`, scene);
+        markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red color for visibility
+        marker.material = markerMaterial;
+        cornerMarkers.push(marker); // Store the marker for later updates
+    }
+}
+
+// Update corner marker positions based on the transformed corners of the desktop
+function updateCornerMarkers() {
+    if (transformedCorners.length === 4) {
+        for (let i = 0; i < 4; i++) {
+            cornerMarkers[i].position.copyFrom(transformedCorners[i]); // Move markers to corner positions
+        }
+    }
+}
+
+
 function calculate2DCoordinates(
 	projectedPoint: BABYLON.Vector3,
 	desktopCorners: BABYLON.Vector3[],
@@ -77,6 +102,9 @@ function toggle2D3D(
 	distanceSphereToDesktop: number,
 ) {
 	const renderAs3D = () => {
+		if (mesh.material) {
+			mesh.material.alpha = 1;
+		}
 		mesh.scaling = new BABYLON.Vector3(1, 1, 1);
 		mesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_NONE;
 	};
@@ -105,6 +133,15 @@ function toggle2D3D(
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 			mesh.rotation = desktop.rotation.clone();
 			sharedSpherePosition.copyFrom(mesh.position);
+			if(desktopMaterial.alpha === 0){
+				if (mesh.material) {
+					mesh.material.alpha = 0;
+				}
+			} else {
+				if (mesh.material) {
+					mesh.material.alpha = 1;
+				}
+			}
 			(mesh.material as BABYLON.StandardMaterial).diffuseColor =
 				new BABYLON.Color3(0, 1, 0);
 		} else {
@@ -210,6 +247,19 @@ const createScene = async () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const portal = createPortalMesh(scene);
+	
+	createCornerMarkers(scene);
+
+	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
+
+
+	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.1 }, scene);
+    const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
+    buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
+    buttonMesh.material = buttonMaterial;
+
+    // Position the button in front of the user
+    buttonMesh.position = new BABYLON.Vector3(0, 1.5, 5); // Adjust position as needed
 
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
@@ -217,6 +267,7 @@ const createScene = async () => {
 			sessionMode: "immersive-ar",
 		},
 	});
+
 
 	const colyseusSDK = new Client(
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
@@ -379,8 +430,9 @@ const createScene = async () => {
 
 			// Click on the desktop to change the position of the shared sphere
 			scene.onPointerDown = (event, pointer) => {
-				if (event.button === 0 && pointer.pickedPoint) {
+				if (event.button === 0 && pointer.pickedPoint && pointer.pickedMesh === desktop) {
 					const targetPosition = pointer.pickedPoint.clone();
+					sharedSphere.position.copyFrom(targetPosition);
 					sharedSpherePosition.copyFrom(targetPosition);
 
 					room.send("updatePosition", {
@@ -404,12 +456,20 @@ const createScene = async () => {
 											pointerEvent.pointerId,
 										);
 									const motionController = xrInput?.motionController;
-									if (motionController) {
+									if (motionController && pointerInfo.pickInfo.pickedMesh !== buttonMesh) {
 										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
 										}
+									}
+								}
+								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
+									// Change the desktop color when the button is clicked
+									if(desktopMaterial.alpha === 0) { 
+										desktopMaterial.alpha = 1;
+									} else {
+										desktopMaterial.alpha = 0
 									}
 								}
 							}
@@ -466,8 +526,17 @@ const createScene = async () => {
 				BABYLON.PointerEventTypes.POINTERUP);
 
 			scene.registerBeforeRender(() => {
+				console.log("XR state:", xrHelper.baseExperience.state);
+				updateCornerMarkers();
+				if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
+					desktop.material = desktopMaterial
+					} else if (xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR) {
+
+					}
+			
 				if (isSphereGrabbed) {
 					// Update the sphere's material color when grabbed
+					sphereMaterial.alpha = 1;
 					sphereMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 1); // Blue color
 				} else {
 					// Update the sphere's material color when released
@@ -475,7 +544,7 @@ const createScene = async () => {
 				}
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
-					// TODO: lerping should be teh same in 2d and 3d
+					// TODO: lerping should be the same in 2d and 3d
 					const lerpFactor = sharedSphere.scaling.z === 0.1 ? 1 : 0.05;
 					sharedSphere.position = BABYLON.Vector3.Lerp(
 						sharedSphere.position,
@@ -603,6 +672,11 @@ const createScene = async () => {
 					});
 				}
 				checkPortalInteraction(portal, desktop.position);
+				room.send("updatePosition", {
+					x: sharedSpherePosition.x,
+					y: sharedSpherePosition.y,
+					z: sharedSpherePosition.z,
+				});
 			});
 		})
 		.catch((error) => {
