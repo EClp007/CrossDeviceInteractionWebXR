@@ -31,7 +31,7 @@ let leftDeskopVector: BABYLON.Vector3 | null = null;
 let upDeskopVector: BABYLON.Vector3 | null = null;
 let desktopNormal: BABYLON.Vector3 | null = null;
 let desktopMaterial: BABYLON.StandardMaterial;
-let cornerMarkers: BABYLON.Mesh[] = [];
+const cornerMarkers: BABYLON.Mesh[] = [];
 
 
 
@@ -61,13 +61,13 @@ function isInBounds(mesh: BABYLON.Mesh) {
 }
 
 function createCornerMarkers(scene: BABYLON.Scene) {
-    // Create a marker for each corner (spheres in this case)
+    // Create a marker for each corner
     for (let i = 0; i < 4; i++) {
         const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.05 }, scene);
         const markerMaterial = new BABYLON.StandardMaterial(`markerMaterial${i}`, scene);
-        markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red color for visibility
+        markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); 
         marker.material = markerMaterial;
-        cornerMarkers.push(marker); // Store the marker for later updates
+        cornerMarkers.push(marker); // Store the marker
     }
 }
 
@@ -75,7 +75,7 @@ function createCornerMarkers(scene: BABYLON.Scene) {
 function updateCornerMarkers() {
     if (transformedCorners.length === 4) {
         for (let i = 0; i < 4; i++) {
-            cornerMarkers[i].position.copyFrom(transformedCorners[i]); // Move markers to corner positions
+            cornerMarkers[i].position.copyFrom(transformedCorners[i]);
         }
     }
 }
@@ -173,7 +173,6 @@ function checkPortalInteraction(
 
 		if (distanceToPortal < teleportThreshold) {
 			sharedSpherePosition.copyFrom(middleOfDesktop);
-			console.log("Sphere entered the portal!");
 		}
 	}
 }
@@ -225,14 +224,16 @@ const createScene = async () => {
 	desktop = createDesktop(scene, desktopWidth, desktopHeight);
 
 	// Create a FreeCamera
-	const camera = new BABYLON.FreeCamera(
-		"camera1",
-		new BABYLON.Vector3(0, 0, -1.02),
-		scene,
-	);
-	camera.setTarget(BABYLON.Vector3.Zero());
-	camera.inputs.clear();
-	camera.parent = desktop;
+    const desktopCamera = new BABYLON.FreeCamera(
+        "desktopCamera",
+        new BABYLON.Vector3(0, 0, -1.02),
+        scene,
+    );
+    desktopCamera.setTarget(BABYLON.Vector3.Zero());
+    desktopCamera.inputs.clear();
+    desktopCamera.parent = desktop; // Parent the camera to the desktop
+    scene.activeCamera = desktopCamera; // Set the active camera
+
 
 	// Create sphere and its material
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
@@ -267,6 +268,31 @@ const createScene = async () => {
 			sessionMode: "immersive-ar",
 		},
 	});
+
+	xrHelper.baseExperience.onStateChangedObservable.add((state) => {
+        if (state === BABYLON.WebXRState.IN_XR) {
+            // XR mode
+            // Unparent the desktop camera (optional, since it's not the active camera in XR)
+            desktopCamera.parent = null;
+
+            // Position the desktop in front of the XR camera
+            const xrCamera = xrHelper.baseExperience.camera;
+            const forward = xrCamera.getDirection(BABYLON.Axis.Z);
+            const distance = 2; // Distance in front of the user
+            desktop.position = xrCamera.position.add(forward.scale(distance));
+
+            // Rotate the desktop to face the user
+            desktop.lookAt(xrCamera.position, 0, Math.PI, 0);
+        } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
+            // Desktop mode
+            // Parent the camera back to the desktop
+            desktopCamera.parent = desktop;
+
+            // Reset desktop position if needed
+            desktop.position.set(0, 0, 0);
+            desktop.rotation.set(0, 0, 0);
+        }
+    });
 
 
 	const colyseusSDK = new Client(
@@ -526,7 +552,6 @@ const createScene = async () => {
 				BABYLON.PointerEventTypes.POINTERUP);
 
 			scene.registerBeforeRender(() => {
-				console.log("XR state:", xrHelper.baseExperience.state);
 				updateCornerMarkers();
 				if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
 					desktop.material = desktopMaterial
