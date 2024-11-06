@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { Client } from "colyseus.js";
 import "@babylonjs/loaders";
+import * as GUI from "@babylonjs/gui";
 import {
 	initializeEngine,
 	createDesktop,
@@ -253,15 +254,6 @@ const createScene = async () => {
 
 	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
 
-
-	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.1 }, scene);
-    const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
-    buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
-    buttonMesh.material = buttonMaterial;
-
-    // Position the button in front of the user
-    buttonMesh.position = new BABYLON.Vector3(0, 1.5, 5); // Adjust position as needed
-
 	// Set up VR experience
 	const xrHelper = await scene.createDefaultXRExperienceAsync({
 		uiOptions: {
@@ -293,6 +285,33 @@ const createScene = async () => {
             desktop.rotation.set(0, 0, 0);
         }
     });
+
+	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.1 }, scene);
+    const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
+    buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
+    buttonMesh.material = buttonMaterial;
+
+    buttonMesh.parent = desktop
+	buttonMesh.position.x = 1;
+
+	var plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 2}, scene);
+    plane.parent = desktop;
+    plane.position.x = 2;
+
+    plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+
+    var advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
+
+    var button1 = GUI.Button.CreateSimpleButton("but1", "Click Me");
+    button1.width = 1;
+    button1.height = 0.4;
+    button1.color = "white";
+    button1.fontSize = 50;
+    button1.background = "green";
+    button1.onPointerUpObservable.add(function() {
+        alert("you did it!");
+    });
+    advancedTexture.addControl(button1);
 
 
 	const colyseusSDK = new Client(
