@@ -298,15 +298,22 @@ const createScene = async () => {
         }
     });
 
+const dragHandle = BABYLON.MeshBuilder.CreatePlane("dragHandle", { width: 0.1, height: 0.1 }, scene);
+dragHandle.parent = desktop;
+dragHandle.position.x = desktopWidth / 2 + 0.1; 
+
+const dragHandleMaterial = new BABYLON.StandardMaterial("dragHandleMaterial", scene);
+dragHandleMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1); 
+dragHandleMaterial.alpha = 0.5; 
+dragHandle.material = dragHandleMaterial;
+
 
 	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 2}, scene);
     plane.parent = desktop;
     plane.position.x = 1.05;
 
     plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
-
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
-
     const toggleDesktopButton = GUI.Button.CreateSimpleButton("but1", "Hide");
     toggleDesktopButton.width = 0.2;
     toggleDesktopButton.height = 0.1;
