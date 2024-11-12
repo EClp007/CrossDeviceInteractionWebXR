@@ -24,6 +24,7 @@ const movementSpeed = 0.05;
 // Global variables
 let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0);
 let isSphereGrabbed = false;
+let isDesktopGrabbed = false;
 let grabbedMesh: BABYLON.AbstractMesh | null = null;
 const leftThumbstickAxes = { x: 0, y: 0 };
 let leftMotionController: BABYLON.WebXRAbstractMotionController | null = null;
@@ -502,8 +503,8 @@ dragHandle.material = dragHandleMaterial;
 					// Grab the object when the pointer is down
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
-							const grabbedMesh = pointerInfo.pickInfo.pickedMesh;
-							if(grabbedMesh === plane || grabbedMesh === desktop) {
+							const pickedMesh = pointerInfo.pickInfo.pickedMesh;
+							if(pickedMesh === plane || pickedMesh === desktop) {
 								return
 							}
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
@@ -515,11 +516,13 @@ dragHandle.material = dragHandleMaterial;
 										);
 									const motionController = xrInput?.motionController;
 									if (motionController) {
+										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
 										} else if (grabbedMesh.name === "dragHandle") {
 											desktop.setParent(motionController.rootMesh);
+											isDesktopGrabbed = true;
 										}
 									}
 								}
@@ -549,9 +552,11 @@ dragHandle.material = dragHandleMaterial;
 								});
 
 								grabbedMesh = null;
-							} else if (grabbedMesh && grabbedMesh.name === "desktopHandle") {
+							} else if (grabbedMesh && grabbedMesh.name === "dragHandle") {
+								isDesktopGrabbed = false;
+
 								grabbedMesh.setParent(null);
-								grabbedMesh = null;
+								desktop.setParent(null);
 
 								// When desktop position or rotation changes in AR
 								room.send("updateDesktopTransform", {
@@ -566,6 +571,8 @@ dragHandle.material = dragHandleMaterial;
 										z: desktop.rotation.z,
 									},
 								});
+
+								grabbedMesh = null;
 							} else if (grabbedMesh && grabbedMesh.name === "portal") {
 								grabbedMesh.setParent(null);
 								grabbedMesh = null;
