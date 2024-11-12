@@ -13,13 +13,13 @@ import {
 const engine = initializeEngine("renderCanvas");
 
 // Constants
-const radiusSphere = 0.125;
-const desktopWidth = 1.6;
-const desktopHeight = 0.9;
-const portalThreshold = 0.35;
-const teleportThreshold = 0.08;
-const rotationSpeed = 0.05;
-const movementSpeed = 0.05;
+const radiusSphere = 1.25;
+const desktopWidth = 16.0;
+const desktopHeight = 9.0;
+const portalThreshold = 3.5;
+const teleportThreshold = 0.8;
+const rotationSpeed = 0.5;
+const movementSpeed = 0.5;
 
 // Global variables
 let sharedSpherePosition = new BABYLON.Vector3(0, 1, 0);
@@ -65,7 +65,7 @@ function isInBounds(mesh: BABYLON.Mesh) {
 function createCornerMarkers(scene: BABYLON.Scene) {
     // Create a marker for each corner
     for (let i = 0; i < 4; i++) {
-        const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.05 }, scene);
+        const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.25 }, scene);
         const markerMaterial = new BABYLON.StandardMaterial(`markerMaterial${i}`, scene);
         markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); 
         marker.material = markerMaterial;
@@ -228,7 +228,7 @@ const createScene = async () => {
 	// Create a FreeCamera
     const desktopCamera = new BABYLON.FreeCamera(
         "desktopCamera",
-        new BABYLON.Vector3(0, 0, -1.02),
+        new BABYLON.Vector3(0, 0, -10.02),
         scene,
     );
     desktopCamera.setTarget(BABYLON.Vector3.Zero());
@@ -271,7 +271,7 @@ const createScene = async () => {
             // Position the desktop in front of the XR camera
             const xrCamera = xrHelper.baseExperience.camera;
             const forward = xrCamera.getDirection(BABYLON.Axis.Z);
-            const distance = 2; // Distance in front of the user
+            const distance = 30; // Distance in front of the user
             desktop.position = xrCamera.position.add(forward.scale(distance));
 
             // Rotate the desktop to face the user
@@ -299,9 +299,9 @@ const createScene = async () => {
         }
     });
 
-const dragHandle = BABYLON.MeshBuilder.CreatePlane("dragHandle", { width: 0.1, height: 0.1 }, scene);
+const dragHandle = BABYLON.MeshBuilder.CreatePlane("dragHandle", { width: 1, height: 1 }, scene);
 dragHandle.parent = desktop;
-dragHandle.position.x = desktopWidth / 2 + 0.1; 
+dragHandle.position.x = desktopWidth / 2 + 1; 
 
 const dragHandleMaterial = new BABYLON.StandardMaterial("dragHandleMaterial", scene);
 dragHandleMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1); 
@@ -309,9 +309,9 @@ dragHandleMaterial.alpha = 0.5;
 dragHandle.material = dragHandleMaterial;
 
 
-	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 0.5}, scene);
+	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 5}, scene);
     plane.parent = desktop;
-    plane.position.x = 1.05;
+    plane.position.x = 10.05;
 
     plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
@@ -419,53 +419,56 @@ dragHandle.material = dragHandleMaterial;
 
 			// Keyboard input handling
 			// Move the sphere with the keyboard, depending if it's in 2D or 3D mode
-			window.addEventListener("keydown", (event) => {
-				const speed = 0.03; // Movement speed
-				const isSphereIn2DMode = sharedSphere.scaling.z === 0.1;
+// Keyboard input handling for moving the sphere
+window.addEventListener("keydown", (event) => {
+    const isSphereIn2DMode = sharedSphere.scaling.z === 0.1;
+	const speed = isSphereIn2DMode ? 5 : 1;
 
-				if (!isSphereGrabbed && leftDeskopVector && upDeskopVector) {
-					let moveVector = BABYLON.Vector3.Zero();
+    if (!isSphereGrabbed && leftDeskopVector && upDeskopVector) {
+        let moveVector = BABYLON.Vector3.Zero();
 
-					// Function to calculate move vector based on 2D or 3D mode
-					const calculateMoveVector = (
-						axisVector: BABYLON.Vector3,
-						scalar: number,
-					) => {
-						if (isSphereIn2DMode) {
-							moveVector = moveVector.add(axisVector.scale(scalar));
-						}
-						return moveVector.add(axisVector.scale(scalar));
-					};
+        // Function to calculate move vector based on 2D or 3D mode
+        const calculateMoveVector = (
+            axisVector: BABYLON.Vector3,
+            scalar: number,
+        ) => {
+            if (isSphereIn2DMode) {
+                // For 2D mode, we move along the desktop plane using left and up vectors
+                return axisVector.scale(scalar);
+            }
+                // For 3D mode, we simply apply the scalar to the axis vector
+                return axisVector.scale(scalar);
+        };
 
-					switch (event.key.toLowerCase()) {
-						case "w":
-							moveVector = calculateMoveVector(upDeskopVector, speed);
-							break;
-						case "s":
-							moveVector = calculateMoveVector(upDeskopVector, -speed);
-							break;
-						case "a":
-							moveVector = calculateMoveVector(leftDeskopVector, -speed);
-							break;
-						case "d":
-							moveVector = calculateMoveVector(leftDeskopVector, speed);
-							break;
-						default:
-							return;
-					}
+        switch (event.key.toLowerCase()) {
+            case "w":
+                moveVector = calculateMoveVector(upDeskopVector, -speed);
+                break;
+            case "s":
+                moveVector = calculateMoveVector(upDeskopVector, speed);
+                break;
+            case "a":
+                moveVector = calculateMoveVector(leftDeskopVector, speed);
+                break;
+            case "d":
+                moveVector = calculateMoveVector(leftDeskopVector, -speed);
+                break;
+            default:
+                return;
+        }
 
-					const newPosition = sharedSpherePosition.add(moveVector);
-					sharedSpherePosition.copyFrom(newPosition);
+        // Update the sphere's position based on the move vector
+        const newPosition = sharedSpherePosition.add(moveVector);
+        sharedSpherePosition.copyFrom(newPosition);
 
-					// Send position update to the server
-					room.send("updatePosition", {
-						x: sharedSpherePosition.x,
-						y: sharedSpherePosition.y,
-						z: sharedSpherePosition.z,
-					});
-				}
-			});
-
+        // Send position update to the server
+        room.send("updatePosition", {
+            x: sharedSpherePosition.x,
+            y: sharedSpherePosition.y,
+            z: sharedSpherePosition.z,
+        });
+    }
+});
 			xrHelper.input.onControllerAddedObservable.add((controller) => {
 				controller.onMotionControllerInitObservable.add((motionController) => {
 					if (motionController.handness === "left") {
@@ -602,7 +605,7 @@ dragHandle.material = dragHandleMaterial;
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
 					// TODO: lerping should be the same in 2d and 3d
-					const lerpFactor = sharedSphere.scaling.z === 0.1 ? 1 : 0.05;
+					const lerpFactor = 0.05;
 					sharedSphere.position = BABYLON.Vector3.Lerp(
 						sharedSphere.position,
 						sharedSpherePosition,
