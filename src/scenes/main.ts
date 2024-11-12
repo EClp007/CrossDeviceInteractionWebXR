@@ -280,11 +280,11 @@ const createScene = async () => {
 				if(toggleDesktopButton.background === "green") {
 					toggleDesktopButton.background = "red";
 					(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Hide";
-					desktopMaterial.alpha = 1}
+					desktop.visibility = 1}
 					else {
 						toggleDesktopButton.background = "green";
 						(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Show";
-						desktopMaterial.alpha = 0;
+						desktop.visibility = 0;
 					}
 			});
         } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
@@ -502,6 +502,10 @@ dragHandle.material = dragHandleMaterial;
 					// Grab the object when the pointer is down
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
+							const pickedMesh = pointerInfo.pickInfo.pickedMesh;
+							if(pickedMesh === plane) {
+								return
+							}
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
 								if ("pointerId" in pointerInfo.event) {
 									const pointerEvent = pointerInfo.event as PointerEvent;
