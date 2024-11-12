@@ -281,11 +281,11 @@ const createScene = async () => {
 				if(toggleDesktopButton.background === "green") {
 					toggleDesktopButton.background = "red";
 					(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Hide";
-					desktop.visibility = 1}
+					desktopMaterial.alpha = 1}
 					else {
 						toggleDesktopButton.background = "green";
 						(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Show";
-						desktop.visibility = 0;
+						desktopMaterial.alpha = 0;
 					}
 			});
         } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
