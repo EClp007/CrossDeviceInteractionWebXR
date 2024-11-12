@@ -308,17 +308,17 @@ dragHandleMaterial.alpha = 0.5;
 dragHandle.material = dragHandleMaterial;
 
 
-	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 2}, scene);
+	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 0.5}, scene);
     plane.parent = desktop;
     plane.position.x = 1.05;
 
     plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
     const toggleDesktopButton = GUI.Button.CreateSimpleButton("but1", "Hide");
-    toggleDesktopButton.width = 0.2;
-    toggleDesktopButton.height = 0.1;
+    toggleDesktopButton.width = 0.5;
+    toggleDesktopButton.height = 0.2;
     toggleDesktopButton.color = "white";
-    toggleDesktopButton.fontSize = 50;
+    toggleDesktopButton.fontSize = 150;
     toggleDesktopButton.background = "red";
     advancedTexture.addControl(toggleDesktopButton);
 
