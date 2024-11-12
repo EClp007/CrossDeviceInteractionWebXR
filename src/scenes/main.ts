@@ -502,8 +502,8 @@ dragHandle.material = dragHandleMaterial;
 					// Grab the object when the pointer is down
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
-							const pickedMesh = pointerInfo.pickInfo.pickedMesh;
-							if(pickedMesh === plane) {
+							const grabbedMesh = pointerInfo.pickInfo.pickedMesh;
+							if(grabbedMesh === plane || grabbedMesh === desktop) {
 								return
 							}
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
@@ -515,10 +515,11 @@ dragHandle.material = dragHandleMaterial;
 										);
 									const motionController = xrInput?.motionController;
 									if (motionController) {
-										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
+										} else if (grabbedMesh.name === "dragHandle") {
+											desktop.setParent(motionController.rootMesh);
 										}
 									}
 								}
@@ -548,7 +549,7 @@ dragHandle.material = dragHandleMaterial;
 								});
 
 								grabbedMesh = null;
-							} else if (grabbedMesh && grabbedMesh.name === "desktop") {
+							} else if (grabbedMesh && grabbedMesh.name === "desktopHandle") {
 								grabbedMesh.setParent(null);
 								grabbedMesh = null;
 
