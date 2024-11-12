@@ -35,8 +35,6 @@ let desktopNormal: BABYLON.Vector3 | null = null;
 let desktopMaterial: BABYLON.StandardMaterial;
 const cornerMarkers: BABYLON.Mesh[] = [];
 
-
-
 let desktopBounds: {
 	minX: number;
 	maxX: number;
@@ -63,25 +61,31 @@ function isInBounds(mesh: BABYLON.Mesh) {
 }
 
 function createCornerMarkers(scene: BABYLON.Scene) {
-    // Create a marker for each corner
-    for (let i = 0; i < 4; i++) {
-        const marker = BABYLON.MeshBuilder.CreateSphere(`cornerMarker${i}`, { diameter: 0.25 }, scene);
-        const markerMaterial = new BABYLON.StandardMaterial(`markerMaterial${i}`, scene);
-        markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0); 
-        marker.material = markerMaterial;
-        cornerMarkers.push(marker); // Store the marker
-    }
+	// Create a marker for each corner
+	for (let i = 0; i < 4; i++) {
+		const marker = BABYLON.MeshBuilder.CreateSphere(
+			`cornerMarker${i}`,
+			{ diameter: 0.25 },
+			scene,
+		);
+		const markerMaterial = new BABYLON.StandardMaterial(
+			`markerMaterial${i}`,
+			scene,
+		);
+		markerMaterial.diffuseColor = new BABYLON.Color3(1, 0, 0);
+		marker.material = markerMaterial;
+		cornerMarkers.push(marker); // Store the marker
+	}
 }
 
 // Update corner marker positions based on the transformed corners of the desktop
 function updateCornerMarkers() {
-    if (transformedCorners.length === 4) {
-        for (let i = 0; i < 4; i++) {
-            cornerMarkers[i].position.copyFrom(transformedCorners[i]);
-        }
-    }
+	if (transformedCorners.length === 4) {
+		for (let i = 0; i < 4; i++) {
+			cornerMarkers[i].position.copyFrom(transformedCorners[i]);
+		}
+	}
 }
-
 
 function calculate2DCoordinates(
 	projectedPoint: BABYLON.Vector3,
@@ -135,7 +139,7 @@ function toggle2D3D(
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 			mesh.rotation = desktop.rotation.clone();
 			sharedSpherePosition.copyFrom(mesh.position);
-			if(desktopMaterial.alpha === 0){
+			if (desktopMaterial.alpha === 0) {
 				if (mesh.material) {
 					mesh.material.alpha = 0;
 				}
@@ -226,16 +230,15 @@ const createScene = async () => {
 	desktop = createDesktop(scene, desktopWidth, desktopHeight);
 
 	// Create a FreeCamera
-    const desktopCamera = new BABYLON.FreeCamera(
-        "desktopCamera",
-        new BABYLON.Vector3(0, 0, -10.02),
-        scene,
-    );
-    desktopCamera.setTarget(BABYLON.Vector3.Zero());
-    desktopCamera.inputs.clear();
-    desktopCamera.parent = desktop; // Parent the camera to the desktop
-    scene.activeCamera = desktopCamera; // Set the active camera
-
+	const desktopCamera = new BABYLON.FreeCamera(
+		"desktopCamera",
+		new BABYLON.Vector3(0, 0, -10.02),
+		scene,
+	);
+	desktopCamera.setTarget(BABYLON.Vector3.Zero());
+	desktopCamera.inputs.clear();
+	desktopCamera.parent = desktop; // Parent the camera to the desktop
+	scene.activeCamera = desktopCamera; // Set the active camera
 
 	// Create sphere and its material
 	const sphereMaterial = new BABYLON.StandardMaterial("sphereMaterial", scene);
@@ -250,7 +253,7 @@ const createScene = async () => {
 	shadowGenerator.addShadowCaster(sharedSphere);
 
 	const portal = createPortalMesh(scene);
-	
+
 	createCornerMarkers(scene);
 
 	desktopMaterial = new BABYLON.StandardMaterial("desktopMaterial", scene);
@@ -263,66 +266,71 @@ const createScene = async () => {
 	});
 
 	xrHelper.baseExperience.onStateChangedObservable.add((state) => {
-        if (state === BABYLON.WebXRState.IN_XR) {
-            // XR mode
-            // Unparent the desktop camera (optional, since it's not the active camera in XR)
-            desktopCamera.parent = null;
+		if (state === BABYLON.WebXRState.IN_XR) {
+			// XR mode
+			// Unparent the desktop camera (optional, since it's not the active camera in XR)
+			desktopCamera.parent = null;
 
-            // Position the desktop in front of the XR camera
-            const xrCamera = xrHelper.baseExperience.camera;
-            const forward = xrCamera.getDirection(BABYLON.Axis.Z);
-            const distance = 30; // Distance in front of the user
-            desktop.position = xrCamera.position.add(forward.scale(distance));
+			// Position the desktop in front of the XR camera
+			const xrCamera = xrHelper.baseExperience.camera;
+			const forward = xrCamera.getDirection(BABYLON.Axis.Z);
+			const distance = 30; // Distance in front of the user
+			desktop.position = xrCamera.position.add(forward.scale(distance));
 
-            // Rotate the desktop to face the user
-            desktop.lookAt(xrCamera.position, 0, Math.PI, 0);
+			// Rotate the desktop to face the user
+			desktop.lookAt(xrCamera.position, 0, Math.PI, 0);
 
 			toggleDesktopButton.onPointerUpObservable.add(() => {
-				if(toggleDesktopButton.background === "green") {
+				if (toggleDesktopButton.background === "green") {
 					toggleDesktopButton.background = "red";
 					(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Hide";
-					desktopMaterial.alpha = 1}
-					else {
-						toggleDesktopButton.background = "green";
-						(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Show";
-						desktopMaterial.alpha = 0;
-					}
+					desktopMaterial.alpha = 1;
+				} else {
+					toggleDesktopButton.background = "green";
+					(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Show";
+					desktopMaterial.alpha = 0;
+				}
 			});
-        } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
-            // Desktop mode
-            // Parent the camera back to the desktop
-            desktopCamera.parent = desktop;
+		} else if (state === BABYLON.WebXRState.NOT_IN_XR) {
+			// Desktop mode
+			// Parent the camera back to the desktop
+			desktopCamera.parent = desktop;
 
-            // Reset desktop position if needed
-            desktop.position.set(0, 0, 0);
-            desktop.rotation.set(0, 0, 0);
-        }
-    });
+			// Reset desktop position if needed
+			desktop.position.set(0, 0, 0);
+			desktop.rotation.set(0, 0, 0);
+		}
+	});
 
-const dragHandle = BABYLON.MeshBuilder.CreatePlane("dragHandle", { width: 1, height: 1 }, scene);
-dragHandle.parent = desktop;
-dragHandle.position.x = desktopWidth / 2 + 1; 
+	const dragHandle = BABYLON.MeshBuilder.CreatePlane(
+		"dragHandle",
+		{ width: 1, height: 1 },
+		scene,
+	);
+	dragHandle.parent = desktop;
+	dragHandle.position.x = desktopWidth / 2 + 1;
 
-const dragHandleMaterial = new BABYLON.StandardMaterial("dragHandleMaterial", scene);
-dragHandleMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1); 
-dragHandleMaterial.alpha = 0.5; 
-dragHandle.material = dragHandleMaterial;
+	const dragHandleMaterial = new BABYLON.StandardMaterial(
+		"dragHandleMaterial",
+		scene,
+	);
+	dragHandleMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
+	dragHandleMaterial.alpha = 0.5;
+	dragHandle.material = dragHandleMaterial;
 
+	const plane = BABYLON.MeshBuilder.CreatePlane("plane", { size: 5 }, scene);
+	plane.parent = desktop;
+	plane.position.x = 10.05;
 
-	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 5}, scene);
-    plane.parent = desktop;
-    plane.position.x = 10.05;
-
-    plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
-    const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
-    const toggleDesktopButton = GUI.Button.CreateSimpleButton("but1", "Hide");
-    toggleDesktopButton.width = 0.5;
-    toggleDesktopButton.height = 0.2;
-    toggleDesktopButton.color = "white";
-    toggleDesktopButton.fontSize = 150;
-    toggleDesktopButton.background = "red";
-    advancedTexture.addControl(toggleDesktopButton);
-
+	plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+	const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
+	const toggleDesktopButton = GUI.Button.CreateSimpleButton("but1", "Hide");
+	toggleDesktopButton.width = 0.5;
+	toggleDesktopButton.height = 0.2;
+	toggleDesktopButton.color = "white";
+	toggleDesktopButton.fontSize = 150;
+	toggleDesktopButton.background = "red";
+	advancedTexture.addControl(toggleDesktopButton);
 
 	const colyseusSDK = new Client(
 		"wss://cross-device-interaction-webxr-d75c875bbe63.herokuapp.com",
@@ -419,56 +427,56 @@ dragHandle.material = dragHandleMaterial;
 
 			// Keyboard input handling
 			// Move the sphere with the keyboard, depending if it's in 2D or 3D mode
-// Keyboard input handling for moving the sphere
-window.addEventListener("keydown", (event) => {
-    const isSphereIn2DMode = sharedSphere.scaling.z === 0.1;
-	const speed = isSphereIn2DMode ? 5 : 1;
+			// Keyboard input handling for moving the sphere
+			window.addEventListener("keydown", (event) => {
+				const isSphereIn2DMode = sharedSphere.scaling.z === 0.1;
+				const speed = isSphereIn2DMode ? 5 : 1;
 
-    if (!isSphereGrabbed && leftDeskopVector && upDeskopVector) {
-        let moveVector = BABYLON.Vector3.Zero();
+				if (!isSphereGrabbed && leftDeskopVector && upDeskopVector) {
+					let moveVector = BABYLON.Vector3.Zero();
 
-        // Function to calculate move vector based on 2D or 3D mode
-        const calculateMoveVector = (
-            axisVector: BABYLON.Vector3,
-            scalar: number,
-        ) => {
-            if (isSphereIn2DMode) {
-                // For 2D mode, we move along the desktop plane using left and up vectors
-                return axisVector.scale(scalar);
-            }
-                // For 3D mode, we simply apply the scalar to the axis vector
-                return axisVector.scale(scalar);
-        };
+					// Function to calculate move vector based on 2D or 3D mode
+					const calculateMoveVector = (
+						axisVector: BABYLON.Vector3,
+						scalar: number,
+					) => {
+						if (isSphereIn2DMode) {
+							// For 2D mode, we move along the desktop plane using left and up vectors
+							return axisVector.scale(scalar);
+						}
+						// For 3D mode, we simply apply the scalar to the axis vector
+						return axisVector.scale(scalar);
+					};
 
-        switch (event.key.toLowerCase()) {
-            case "w":
-                moveVector = calculateMoveVector(upDeskopVector, -speed);
-                break;
-            case "s":
-                moveVector = calculateMoveVector(upDeskopVector, speed);
-                break;
-            case "a":
-                moveVector = calculateMoveVector(leftDeskopVector, speed);
-                break;
-            case "d":
-                moveVector = calculateMoveVector(leftDeskopVector, -speed);
-                break;
-            default:
-                return;
-        }
+					switch (event.key.toLowerCase()) {
+						case "w":
+							moveVector = calculateMoveVector(upDeskopVector, -speed);
+							break;
+						case "s":
+							moveVector = calculateMoveVector(upDeskopVector, speed);
+							break;
+						case "a":
+							moveVector = calculateMoveVector(leftDeskopVector, speed);
+							break;
+						case "d":
+							moveVector = calculateMoveVector(leftDeskopVector, -speed);
+							break;
+						default:
+							return;
+					}
 
-        // Update the sphere's position based on the move vector
-        const newPosition = sharedSpherePosition.add(moveVector);
-        sharedSpherePosition.copyFrom(newPosition);
+					// Update the sphere's position based on the move vector
+					const newPosition = sharedSpherePosition.add(moveVector);
+					sharedSpherePosition.copyFrom(newPosition);
 
-        // Send position update to the server
-        room.send("updatePosition", {
-            x: sharedSpherePosition.x,
-            y: sharedSpherePosition.y,
-            z: sharedSpherePosition.z,
-        });
-    }
-});
+					// Send position update to the server
+					room.send("updatePosition", {
+						x: sharedSpherePosition.x,
+						y: sharedSpherePosition.y,
+						z: sharedSpherePosition.z,
+					});
+				}
+			});
 			xrHelper.input.onControllerAddedObservable.add((controller) => {
 				controller.onMotionControllerInitObservable.add((motionController) => {
 					if (motionController.handness === "left") {
@@ -488,7 +496,11 @@ window.addEventListener("keydown", (event) => {
 
 			// Click on the desktop to change the position of the shared sphere
 			scene.onPointerDown = (event, pointer) => {
-				if (event.button === 0 && pointer.pickedPoint && pointer.pickedMesh === desktop) {
+				if (
+					event.button === 0 &&
+					pointer.pickedPoint &&
+					pointer.pickedMesh === desktop
+				) {
 					const targetPosition = pointer.pickedPoint.clone();
 					sharedSphere.position.copyFrom(targetPosition);
 					sharedSpherePosition.copyFrom(targetPosition);
@@ -507,8 +519,8 @@ window.addEventListener("keydown", (event) => {
 					case BABYLON.PointerEventTypes.POINTERDOWN:
 						if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo?.pickedMesh) {
 							const pickedMesh = pointerInfo.pickInfo.pickedMesh;
-							if(pickedMesh === plane || pickedMesh === desktop) {
-								return
+							if (pickedMesh === plane || pickedMesh === desktop) {
+								return;
 							}
 							if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
 								if ("pointerId" in pointerInfo.event) {
@@ -588,12 +600,17 @@ window.addEventListener("keydown", (event) => {
 
 			scene.registerBeforeRender(() => {
 				updateCornerMarkers();
-				if(xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR) {
-					desktop.material = desktopMaterial
-					} else if (xrHelper.baseExperience && xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR) {
+				if (
+					xrHelper.baseExperience &&
+					xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR
+				) {
+					desktop.material = desktopMaterial;
+				} else if (
+					xrHelper.baseExperience &&
+					xrHelper.baseExperience.state === BABYLON.WebXRState.NOT_IN_XR
+				) {
+				}
 
-					}
-			
 				if (isSphereGrabbed) {
 					// Update the sphere's material color when grabbed
 					sphereMaterial.alpha = 1;
