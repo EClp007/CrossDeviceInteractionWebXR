@@ -275,7 +275,7 @@ const createScene = async () => {
             desktop.position = xrCamera.position.add(forward.scale(distance));
 
             // Rotate the desktop to face the user
-            desktop.lookAt(xrCamera.position, 0, Math.PI, 0);
+            desktop.lookAt(xrCamera.position, Math.PI); 
 
 			toggleDesktopButton.onPointerUpObservable.add(() => {
 				if(toggleDesktopButton.background === "green") {
@@ -301,7 +301,7 @@ const createScene = async () => {
 
 const dragHandle = BABYLON.MeshBuilder.CreatePlane("dragHandle", { width: 0.1, height: 0.1 }, scene);
 dragHandle.parent = desktop;
-dragHandle.position.x = desktopWidth / 2 + 0.1; 
+dragHandle.position.x = - desktopWidth / 2 - 0.1; 
 
 const dragHandleMaterial = new BABYLON.StandardMaterial("dragHandleMaterial", scene);
 dragHandleMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1); 
