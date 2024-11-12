@@ -275,6 +275,18 @@ const createScene = async () => {
 
             // Rotate the desktop to face the user
             desktop.lookAt(xrCamera.position, 0, Math.PI, 0);
+
+			toggleDesktopButton.onPointerUpObservable.add(() => {
+				if(toggleDesktopButton.background === "green") {
+					toggleDesktopButton.background = "red";
+					(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Hide";
+					desktopMaterial.alpha = 1}
+					else {
+						toggleDesktopButton.background = "green";
+						(toggleDesktopButton.children[0] as GUI.TextBlock).text = "Show";
+						desktopMaterial.alpha = 0;
+					}
+			});
         } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
             // Desktop mode
             // Parent the camera back to the desktop
@@ -286,32 +298,22 @@ const createScene = async () => {
         }
     });
 
-	const buttonMesh = BABYLON.MeshBuilder.CreateBox("button", { size: 0.1 }, scene);
-    const buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", scene);
-    buttonMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 0.8); // Blue color
-    buttonMesh.material = buttonMaterial;
 
-    buttonMesh.parent = desktop
-	buttonMesh.position.x = 1;
-
-	var plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 2}, scene);
+	const plane = BABYLON.MeshBuilder.CreatePlane("plane", {size: 2}, scene);
     plane.parent = desktop;
-    plane.position.x = 2;
+    plane.position.x = 1.05;
 
     plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
 
-    var advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
+    const advancedTexture = GUI.AdvancedDynamicTexture.CreateForMesh(plane);
 
-    var button1 = GUI.Button.CreateSimpleButton("but1", "Click Me");
-    button1.width = 1;
-    button1.height = 0.4;
-    button1.color = "white";
-    button1.fontSize = 50;
-    button1.background = "green";
-    button1.onPointerUpObservable.add(function() {
-        alert("you did it!");
-    });
-    advancedTexture.addControl(button1);
+    const toggleDesktopButton = GUI.Button.CreateSimpleButton("but1", "Hide");
+    toggleDesktopButton.width = 0.2;
+    toggleDesktopButton.height = 0.1;
+    toggleDesktopButton.color = "white";
+    toggleDesktopButton.fontSize = 50;
+    toggleDesktopButton.background = "red";
+    advancedTexture.addControl(toggleDesktopButton);
 
 
 	const colyseusSDK = new Client(
@@ -501,20 +503,12 @@ const createScene = async () => {
 											pointerEvent.pointerId,
 										);
 									const motionController = xrInput?.motionController;
-									if (motionController && pointerInfo.pickInfo.pickedMesh !== buttonMesh) {
+									if (motionController) {
 										grabbedMesh = pointerInfo.pickInfo.pickedMesh;
 										grabbedMesh.setParent(motionController.rootMesh);
 										if (grabbedMesh.name === "sphere") {
 											isSphereGrabbed = true;
 										}
-									}
-								}
-								if (pointerInfo.pickInfo.pickedMesh === buttonMesh) {
-									// Change the desktop color when the button is clicked
-									if(desktopMaterial.alpha === 0) { 
-										desktopMaterial.alpha = 1;
-									} else {
-										desktopMaterial.alpha = 0
 									}
 								}
 							}
