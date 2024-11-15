@@ -26,12 +26,6 @@ export class MyRoom extends Room<MyRoomState> {
 			this.state.sharedSphere.y = data.y;
 			this.state.sharedSphere.z = data.z;
 
-			// Broadcast the new sphere position to all clients
-			this.broadcast("updatePosition", {
-				x: this.state.sharedSphere.x,
-				y: this.state.sharedSphere.y,
-				z: this.state.sharedSphere.z,
-			});
 		});
 
 		// Handle updates for the desktop
