@@ -27,7 +27,7 @@ export class MyRoom extends Room<MyRoomState> {
 			this.state.sharedSphere.z = data.z;
 
 			// Broadcast the new sphere position to all clients
-			this.broadcast("updateSpherePosition", {
+			this.broadcast("updatePosition", {
 				x: this.state.sharedSphere.x,
 				y: this.state.sharedSphere.y,
 				z: this.state.sharedSphere.z,
