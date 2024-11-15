@@ -116,7 +116,7 @@ function toggle2D3D(
 			projectedPoint,
 			transformedCorners,
 		);
-
+	
 		if (
 			uParam >= 0 &&
 			uParam <= 1 &&
@@ -127,14 +127,12 @@ function toggle2D3D(
 			mesh.position = projectedPoint;
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 			mesh.rotation = desktop.rotation.clone();
-			sharedSpherePosition.copyFrom(mesh.position);
 		}
-
+	
 		if (isInBounds(mesh)) {
 			mesh.position = projectedPoint;
 			mesh.scaling = new BABYLON.Vector3(1, 1, 0.1);
 			mesh.rotation = desktop.rotation.clone();
-			sharedSpherePosition.copyFrom(mesh.position);
 			if(desktopMaterial.alpha === 0){
 				if (mesh.material) {
 					mesh.material.alpha = 0;
@@ -601,7 +599,7 @@ dragHandle.material = dragHandleMaterial;
 				}
 				if (!isSphereGrabbed) {
 					// Smoothly interpolate the shared sphere's position
-					// TODO: lerping should be the same in 2d and 3d
+					// TODO: lerping on desktop should be the more fluid
 					const lerpFactor = sharedSphere.scaling.z === 0.1 ? 1 : 0.05;
 					sharedSphere.position = BABYLON.Vector3.Lerp(
 						sharedSphere.position,
